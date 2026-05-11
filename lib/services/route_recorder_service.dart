@@ -76,6 +76,7 @@ class RouteRecorderService {
     LatLng endPoint, {
     required String startLocationName,
     required String endLocationName,
+    required String transportMode,
     int? rating,
     String? notes,
   }) async {
@@ -97,6 +98,7 @@ class RouteRecorderService {
     return RecordedRoute(
       startLocationName: startLocationName,
       endLocationName: endLocationName,
+      transportMode: transportMode,
       startPoint: _coordinates.first,
       endPoint: endPoint,
       coordinates: _coordinates,

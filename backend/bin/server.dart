@@ -137,6 +137,7 @@ Future<Response> _recordRoute(Request request) async {
     final userId = payload['userId'] as int?;
     final startLocationName = (payload['startLocationName'] as String?)?.trim() ?? '';
     final endLocationName = (payload['endLocationName'] as String?)?.trim() ?? '';
+    final transportMode = (payload['transportMode'] as String?)?.trim() ?? '';
     final startLat = payload['startLatitude'] as double?;
     final startLng = payload['startLongitude'] as double?;
     final endLat = payload['endLatitude'] as double?;
@@ -149,8 +150,8 @@ Future<Response> _recordRoute(Request request) async {
     final startedAt = payload['startedAt'] as String?;
     final endedAt = payload['endedAt'] as String?;
 
-    if (userId == null || startLocationName.isEmpty || endLocationName.isEmpty || startLat == null || startLng == null || endLat == null || endLng == null || coordinates == null || distance == null || duration == null || startedAt == null || endedAt == null) {
-      return _badRequest('Missing required fields: userId, startLocationName, endLocationName, startLatitude, startLongitude, endLatitude, endLongitude, coordinates, distance, duration, startedAt, endedAt');
+    if (userId == null || startLocationName.isEmpty || endLocationName.isEmpty || transportMode.isEmpty || startLat == null || startLng == null || endLat == null || endLng == null || coordinates == null || distance == null || duration == null || startedAt == null || endedAt == null) {
+      return _badRequest('Missing required fields: userId, startLocationName, endLocationName, transportMode, startLatitude, startLongitude, endLatitude, endLongitude, coordinates, distance, duration, startedAt, endedAt');
     }
 
     final coordinatesJson = jsonEncode(coordinates);
@@ -158,13 +159,14 @@ Future<Response> _recordRoute(Request request) async {
 
     await _db.query(
       '''INSERT INTO saferoute.recorded_routes 
-         (id, user_id, start_location_name, end_location_name, start_latitude, start_longitude, end_latitude, end_longitude, coordinates, distance_meters, duration_seconds, rating, notes, started_at, ended_at)
-         VALUES (@id, @userId, @startLocationName, @endLocationName, @startLat, @startLng, @endLat, @endLng, @coords, @distance, @duration, @rating, @notes, @startedAt, @endedAt)''',
+         (id, user_id, start_location_name, end_location_name, transport_mode, start_latitude, start_longitude, end_latitude, end_longitude, coordinates, distance_meters, duration_seconds, rating, notes, started_at, ended_at)
+         VALUES (@id, @userId, @startLocationName, @endLocationName, @transportMode, @startLat, @startLng, @endLat, @endLng, @coords, @distance, @duration, @rating, @notes, @startedAt, @endedAt)''',
       substitutionValues: {
         'id': routeId,
         'userId': userId,
         'startLocationName': startLocationName,
         'endLocationName': endLocationName,
+        'transportMode': transportMode,
         'startLat': startLat,
         'startLng': startLng,
         'endLat': endLat,
@@ -196,7 +198,7 @@ Future<Response> _getUserRoutes(Request request, String userId) async {
     }
 
     final rows = await _db.query(
-      '''SELECT id, start_location_name, end_location_name, start_latitude, start_longitude, end_latitude, end_longitude, 
+      '''SELECT id, start_location_name, end_location_name, transport_mode, start_latitude, start_longitude, end_latitude, end_longitude, 
          coordinates, distance_meters, duration_seconds, rating, notes, started_at, ended_at, created_at
          FROM saferoute.recorded_routes 
          WHERE user_id = @userId 
@@ -209,18 +211,19 @@ Future<Response> _getUserRoutes(Request request, String userId) async {
       'id': row[0],
       'startLocationName': row[1],
       'endLocationName': row[2],
-      'startLatitude': row[3],
-      'startLongitude': row[4],
-      'endLatitude': row[5],
-      'endLongitude': row[6],
-      'coordinates': jsonDecode(row[7] as String),
-      'distance': row[8],
-      'duration': row[9],
-      'rating': row[10],
-      'notes': row[11],
-      'startedAt': row[12].toString(),
-      'endedAt': row[13].toString(),
-      'createdAt': row[14].toString(),
+      'transportMode': row[3],
+      'startLatitude': row[4],
+      'startLongitude': row[5],
+      'endLatitude': row[6],
+      'endLongitude': row[7],
+      'coordinates': jsonDecode(row[8] as String),
+      'distance': row[9],
+      'duration': row[10],
+      'rating': row[11],
+      'notes': row[12],
+      'startedAt': row[13].toString(),
+      'endedAt': row[14].toString(),
+      'createdAt': row[15].toString(),
     }).toList();
 
     return Response.ok(
@@ -253,6 +256,7 @@ Future<void> _ensureSchema() async {
       user_id INT NOT NULL REFERENCES saferoute.users(id) ON DELETE CASCADE,
       start_location_name TEXT,
       end_location_name TEXT,
+      transport_mode TEXT NOT NULL DEFAULT 'walking',
       start_latitude DECIMAL(10, 8) NOT NULL,
       start_longitude DECIMAL(11, 8) NOT NULL,
       end_latitude DECIMAL(10, 8) NOT NULL,
@@ -285,6 +289,11 @@ Future<void> _ensureSchema() async {
   await _db.execute('''
     ALTER TABLE saferoute.recorded_routes
       ADD COLUMN IF NOT EXISTS end_location_name TEXT
+  ''');
+
+  await _db.execute('''
+    ALTER TABLE saferoute.recorded_routes
+      ADD COLUMN IF NOT EXISTS transport_mode TEXT NOT NULL DEFAULT 'walking'
   ''');
 }
 

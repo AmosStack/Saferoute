@@ -13,6 +13,7 @@ class RouteRecorderScreen extends StatefulWidget {
     required this.destination,
     required this.startLocationName,
     required this.endLocationName,
+    required this.transportMode,
     this.userId,
   });
 
@@ -20,6 +21,7 @@ class RouteRecorderScreen extends StatefulWidget {
   final LatLng destination;
   final String startLocationName;
   final String endLocationName;
+  final String transportMode;
   final int? userId;
 
   @override
@@ -159,6 +161,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       widget.destination,
       startLocationName: widget.startLocationName,
       endLocationName: widget.endLocationName,
+      transportMode: widget.transportMode,
       rating: _selectedRating,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
     );
@@ -260,6 +263,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                       '${widget.startLocationName} → ${widget.endLocationName}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mode: ${widget.transportMode}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -293,15 +301,15 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               ),
             ),
           ),
-          // Stop button
+          // Arrived button
           Positioned(
             bottom: 24,
             left: 12,
             right: 12,
             child: FilledButton.icon(
               onPressed: _stopRecording,
-              icon: const Icon(Icons.stop),
-              label: const Text('Stop Recording'),
+              icon: const Icon(Icons.flag),
+              label: const Text('Arrived'),
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.red,
               ),

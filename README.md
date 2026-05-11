@@ -7,7 +7,10 @@ SafeRoute is a Flutter app for mapping transport poverty and recommending safer 
 - Transport-poverty snapshot cards with high-risk stop and corridor signals.
 - Safe-route recommendations filtered by commute period.
 - Community safety actions for reporting unsafe stops, sharing trips, and saving contacts.
-- Registration and login forms backed by a MySQL user store through a small Dart API.
+- Registration and login forms backed by a PostgreSQL user store through a Dart backend API.
+- Route recording with GPS tracking from a user-defined origin to destination.
+- Named location storage: users can enter origin and destination location names, which are geocoded and persisted alongside route coordinates.
+- Route ratings and safety notes: users can rate routes (1-5 stars) and add safety observations that are stored in the database.
 
 ## Run
 
@@ -16,14 +19,28 @@ flutter pub get
 flutter run
 ```
 
-To connect the app to the auth API, set `SAFE_ROUTE_API_BASE_URL` to your backend URL when launching Flutter.
+To connect the app to the backend API, ensure the backend server is running on `http://localhost:3000` (or set the appropriate base URL in [lib/services/backend_service.dart](lib/services/backend_service.dart)).
+
+### Recording Routes
+
+1. On the home screen, tap **"Find safe route"** to open the map picker.
+2. Enter an **origin location name** (e.g., "Home", "Work address") in the origin field.
+3. Enter a **destination location name** in the destination field.
+4. Tap the search icon to geocode each location, or tap on the map to set coordinates manually.
+5. Confirm both points are set, then tap **"Confirm"** to start recording.
+6. The route recorder will track your GPS position and display distance and duration.
+7. When you arrive near the destination, a confirmation dialog appears.
+8. Rate the route (1-5 stars) and optionally add safety notes.
+9. Tap **"Save & Finish"** to persist the route with location names to the database.
 
 ## Backend
 
-The MySQL-backed auth server lives in [backend/README.md](backend/README.md).
+The PostgreSQL-backed server lives in [backend/README.md](backend/README.md). It handles authentication, route recording, and retrieval with location names and GPS coordinates.
 
 ## Notes
 
-- The current build uses mock data and an illustrated map preview instead of a live mapping backend.
+- Routes are stored with both location names (e.g., "Home", "City Center") and precise GPS coordinates.
+- Location names are geocoded using OpenStreetMap's Nominatim service to resolve them into coordinates for routing.
+- The current build uses mock data for the home screen recommendations and an illustrated map preview.
 - Replace the placeholder emergency contacts and route data with local production sources before release.
-- Replace the default API base URL when running on a physical device or a different host.
+- Ensure the PostgreSQL database is running with the schema initialized (see [backend/README.md](backend/README.md)).

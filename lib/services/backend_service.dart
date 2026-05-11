@@ -20,6 +20,7 @@ class BackendService {
           'userId': userId,
           'startLocationName': route.startLocationName,
           'endLocationName': route.endLocationName,
+          'transportMode': route.transportMode,
           'startLatitude': route.startPoint.latitude,
           'startLongitude': route.startPoint.longitude,
           'endLatitude': route.endPoint.latitude,

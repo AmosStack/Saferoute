@@ -7,6 +7,16 @@ import 'dart:convert';
 
 import 'route_recorder_screen.dart';
 
+const _transportModes = <String>[
+  'Walking',
+  'Bicycle',
+  'Motorcycle',
+  'Car',
+  'Bus',
+  'Taxi',
+  'Tricycle',
+];
+
 class MapPickerScreen extends StatefulWidget {
   const MapPickerScreen({super.key, this.userId});
 
@@ -185,14 +195,43 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   void _confirm() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => RouteRecorderScreen(
-          startPoint: _start!,
-          destination: _destination!,
-          startLocationName: _originController.text.trim(),
-          endLocationName: _destinationController.text.trim(),
-          userId: widget.userId,
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Text(
+                'Select transport mode',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+            ),
+            for (final mode in _transportModes)
+              ListTile(
+                leading: const Icon(Icons.directions_transit),
+                title: Text(mode),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => RouteRecorderScreen(
+                        startPoint: _start!,
+                        destination: _destination!,
+                        startLocationName: _originController.text.trim(),
+                        endLocationName: _destinationController.text.trim(),
+                        transportMode: mode,
+                        userId: widget.userId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
@@ -350,7 +389,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             const SizedBox(width: 8),
             FilledButton(
               onPressed: (_start == null || _destination == null || _originController.text.trim().isEmpty || _destinationController.text.trim().isEmpty) ? null : _confirm,
-              child: const Text('Confirm'),
+              child: const Text('Select transport mode'),
             ),
           ],
         ),

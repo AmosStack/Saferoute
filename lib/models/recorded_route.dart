@@ -5,6 +5,7 @@ class RecordedRoute {
     this.id,
     required this.startLocationName,
     required this.endLocationName,
+    required this.transportMode,
     required this.startPoint,
     required this.endPoint,
     required this.coordinates,
@@ -18,6 +19,7 @@ class RecordedRoute {
   final String? id;
   final String startLocationName;
   final String endLocationName;
+  final String transportMode;
   final LatLng startPoint;
   final LatLng endPoint;
   final List<LatLng> coordinates;
@@ -46,6 +48,7 @@ class RecordedRoute {
     'id': id,
     'startLocationName': startLocationName,
     'endLocationName': endLocationName,
+    'transportMode': transportMode,
     'startPoint': {'lat': startPoint.latitude, 'lng': startPoint.longitude},
     'endPoint': {'lat': endPoint.latitude, 'lng': endPoint.longitude},
     'coordinates': coordinates.map((c) => {'lat': c.latitude, 'lng': c.longitude}).toList(),
@@ -60,6 +63,7 @@ class RecordedRoute {
     id: json['id'] as String?,
     startLocationName: json['startLocationName'] as String? ?? json['start_location_name'] as String? ?? '',
     endLocationName: json['endLocationName'] as String? ?? json['end_location_name'] as String? ?? '',
+    transportMode: json['transportMode'] as String? ?? json['transport_mode'] as String? ?? 'walking',
     startPoint: LatLng(
       (json['startPoint'] as Map)['lat'] as double,
       (json['startPoint'] as Map)['lng'] as double,

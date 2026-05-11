@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
   user_id INT NOT NULL REFERENCES saferoute.users(id) ON DELETE CASCADE,
   start_location_name TEXT,
   end_location_name TEXT,
+  transport_mode TEXT NOT NULL DEFAULT 'walking',
   start_latitude DECIMAL(10, 8) NOT NULL,
   start_longitude DECIMAL(11, 8) NOT NULL,
   end_latitude DECIMAL(10, 8) NOT NULL,
