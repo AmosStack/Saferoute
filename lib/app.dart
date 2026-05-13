@@ -1,9 +1,54 @@
 import 'package:flutter/material.dart';
 
+import 'auth/auth_models.dart';
+import 'screens/auth_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/auth_service.dart';
 
-class SafeRouteApp extends StatelessWidget {
+class SafeRouteApp extends StatefulWidget {
   const SafeRouteApp({super.key});
+
+  @override
+  State<SafeRouteApp> createState() => _SafeRouteAppState();
+}
+
+class _SafeRouteAppState extends State<SafeRouteApp> {
+  AuthSession? _session;
+  bool _isCheckingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final result = await Future.wait<dynamic>([
+      Future<void>.delayed(const Duration(seconds: 2)),
+      AuthService.instance.getStoredSession(),
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _session = result[1] as AuthSession?;
+      _isCheckingSession = false;
+    });
+  }
+
+  void _onAuthenticated(AuthSession session) {
+    setState(() {
+      _session = session;
+    });
+  }
+
+  Future<void> _onSignOut() async {
+    await AuthService.instance.signOut();
+    if (!mounted) return;
+    setState(() {
+      _session = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +72,14 @@ class SafeRouteApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F2EA),
       ),
-      home: const HomeScreen(),
+      home: _isCheckingSession
+          ? const SplashScreen()
+          : (_session == null
+              ? AuthScreen(onAuthenticated: _onAuthenticated)
+              : HomeScreen(
+                  user: _session!.user,
+                  onSignOut: _onSignOut,
+                )),
     );
   }
 }
