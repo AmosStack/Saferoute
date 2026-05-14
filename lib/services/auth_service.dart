@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_models.dart';
+import 'backend_service.dart';
 
 class AuthService {
   AuthService._();
@@ -10,7 +11,6 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   static const String _sessionKey = 'auth_session';
-  static const String _passwordKey = 'auth_password';
 
   Future<AuthSession?> getStoredSession() async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,44 +27,91 @@ class AuthService {
     }
   }
 
+  /// Register with email using the backend API
   Future<AuthSession> registerWithEmail({
     required String name,
     required String email,
     required String phone,
     required String password,
   }) async {
-    final session = AuthSession(
-      token: 'local-token-${DateTime.now().millisecondsSinceEpoch}',
-      user: AuthUser(
-        id: DateTime.now().millisecondsSinceEpoch,
+    try {
+      // Call backend API
+      final result = await BackendService.register(
         name: name,
         email: email,
-        phone: phone,
-      ),
-    );
+        password: password,
+      );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
-    await prefs.setString(_passwordKey, password);
-    return session;
+      if (result == null) {
+        throw AuthException('Registration failed. Please try again.');
+      }
+
+      final token = result['token'] as String?;
+      final userJson = result['user'] as Map<String, dynamic>?;
+
+      if (token == null || userJson == null) {
+        throw AuthException('Invalid response from server');
+      }
+
+      final session = AuthSession(
+        token: token,
+        user: AuthUser(
+          id: userJson['id'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+          name: userJson['name'] as String? ?? name,
+          email: userJson['email'] as String? ?? email,
+          phone: phone,
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
+
+      return session;
+    } catch (e) {
+      throw AuthException('Registration failed: $e');
+    }
   }
 
+  /// Sign in with email using the backend API
   Future<AuthSession> signInWithEmail({
     required String email,
     required String password,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = await getStoredSession();
-    final storedPassword = prefs.getString(_passwordKey);
+    try {
+      // Call backend API
+      final result = await BackendService.login(
+        email: email,
+        password: password,
+      );
 
-    if (stored == null || storedPassword == null) {
-      throw const AuthException('No registered account found. Please register first.');
-    }
-    if (stored.user.email.toLowerCase() != email.toLowerCase() || storedPassword != password) {
-      throw const AuthException('Invalid email or password.');
-    }
+      if (result == null) {
+        throw AuthException('Invalid email or password.');
+      }
 
-    return stored;
+      final token = result['token'] as String?;
+      final userJson = result['user'] as Map<String, dynamic>?;
+
+      if (token == null || userJson == null) {
+        throw AuthException('Invalid response from server');
+      }
+
+      final session = AuthSession(
+        token: token,
+        user: AuthUser(
+          id: userJson['id'] as int? ?? 0,
+          name: userJson['name'] as String? ?? 'User',
+          email: userJson['email'] as String? ?? email,
+          phone: '',
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
+
+      return session;
+    } catch (e) {
+      throw AuthException('Login failed: $e');
+    }
   }
 
   Future<AuthSession> signInWithGoogle() async {
