@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../models/recorded_route.dart';
 import '../services/route_recorder_service.dart';
 import '../services/backend_service.dart';
 
@@ -168,11 +167,52 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
     // Save to backend if userId is available
     if (widget.userId != null) {
+      // Save the recorded route
       final saved = await BackendService.saveRoute(
         userId: widget.userId!,
         route: route,
       );
-      if (!saved && mounted) {
+
+      if (saved) {
+        // Also save travel log
+        try {
+          // Get or create transport mode
+          final transportModeId = await BackendService.createTransportMode(
+            widget.transportMode,
+          );
+
+          // Create travel log
+          await BackendService.createTravelLog(
+            userId: widget.userId!,
+            recordedRouteId: route.id,
+            transportModeId: transportModeId,
+            startedAt: route.startTime,
+            endedAt: route.endTime,
+            distanceMeters: route.distance,
+            durationSeconds: route.duration.inSeconds,
+            notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+          );
+
+          // If there are safety notes, create a safety report
+          if (_notesController.text.isNotEmpty && _selectedRating != 0) {
+            // Only create safety report if safety concerns are mentioned
+            final notes = _notesController.text.toLowerCase();
+            if (notes.contains('unsafe') || 
+                notes.contains('danger') || 
+                notes.contains('problem') ||
+                _selectedRating <= 2) {
+              await BackendService.createSafetyReport(
+                userId: widget.userId!,
+                routeId: route.id,
+                description: _notesController.text,
+                severity: 5 - _selectedRating, // Higher severity for lower ratings
+              );
+            }
+          }
+        } catch (e) {
+          print('Error saving travel log/safety report: $e');
+        }
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to save route to server')),
         );
