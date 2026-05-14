@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import 'route_recorder_screen.dart';
+import '../services/route_path_planner_service.dart';
 
 const _transportModes = <String>[
   'Walking',
@@ -29,47 +30,59 @@ class MapPickerScreen extends StatefulWidget {
 class _MapPickerScreenState extends State<MapPickerScreen> {
   LatLng? _start;
   LatLng? _destination;
-  List<LatLng>? _routePolyline;
+  List<PathSegment>? _pathSegments;
+  String? _selectedTransportMode;
+  bool _isLoadingRoute = false;
   final MapController _mapController = MapController();
   final TextEditingController _originController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
 
-  List<LatLng> get _routePoints {
-    if (_start == null || _destination == null) {
-      return const [];
+  List<LatLng> get _allRoutePoints {
+    if (_pathSegments == null || _pathSegments!.isEmpty) {
+      if (_start == null || _destination == null) return const [];
+      return [_start!, _destination!];
     }
-    // Return fetched route if available, otherwise straight line
-    return _routePolyline ?? [_start!, _destination!];
+    final points = <LatLng>[];
+    for (final segment in _pathSegments!) {
+      points.addAll(segment.points);
+    }
+    return points;
   }
 
-  Future<void> _fetchRoute(LatLng start, LatLng destination) async {
-    try {
-      // Use OSRM (Open Source Routing Machine) for road-following routing
-      final uri = Uri.parse(
-        'http://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${destination.longitude},${destination.latitude}',
-      ).replace(queryParameters: {
-        'overview': 'full',
-        'geometries': 'geojson',
+  /// Get color based on transport mode
+  Color _getModeColor(String transportMode) {
+    switch (transportMode.toLowerCase()) {
+      case 'walking':
+        return Colors.green;
+      case 'bus':
+        return Colors.purple;
+      case 'bicycle':
+        return Colors.orange;
+      case 'driving':
+      case 'car':
+      case 'taxi':
+      case 'motorcycle':
+      case 'tricycle':
+        return Colors.blue;
+      default:
+        return Colors.blueAccent;
+    }
+  }
+
+  Future<void> _fetchRoute(LatLng start, LatLng destination, String transportMode) async {
+    if (mounted) {
+      setState(() {
+        _isLoadingRoute = true;
       });
-      final resp = await http.get(uri);
-      if (resp.statusCode != 200) return;
-      final data = json.decode(resp.body) as Map<String, dynamic>;
-      final routes = data['routes'] as List?;
-      if (routes == null || routes.isEmpty) return;
-      final route = routes.first as Map<String, dynamic>;
-      final geometry = route['geometry'] as Map<String, dynamic>;
-      final coordinates = geometry['coordinates'] as List;
-      final points = coordinates
-          .cast<List>()
-          .map((coord) => LatLng(coord[1] as double, coord[0] as double))
-          .toList();
-      if (mounted) {
-        setState(() {
-          _routePolyline = points;
-        });
-      }
-    } catch (_) {
-      // Silently fail; straight line will show instead
+    }
+
+    final segments = await RoutePathPlannerService.calculatePath(start, destination, transportMode);
+
+    if (mounted) {
+      setState(() {
+        _pathSegments = segments;
+        _isLoadingRoute = false;
+      });
     }
   }
 
@@ -77,15 +90,19 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     if (query.trim().isEmpty) return null;
     final uri = Uri.parse('https://nominatim.openstreetmap.org/search')
         .replace(queryParameters: {'format': 'json', 'q': query, 'limit': '1'});
-    final resp = await http.get(uri, headers: {'User-Agent': 'SafeRouteDev/0.1'});
-    if (resp.statusCode != 200) return null;
-    final List data = json.decode(resp.body) as List;
-    if (data.isEmpty) return null;
-    final item = data.first as Map<String, dynamic>;
-    final lat = double.tryParse(item['lat']?.toString() ?? '');
-    final lon = double.tryParse(item['lon']?.toString() ?? '');
-    if (lat == null || lon == null) return null;
-    return LatLng(lat, lon);
+    try {
+      final resp = await http.get(uri, headers: {'User-Agent': 'SafeRouteDev/0.1'});
+      if (resp.statusCode != 200) return null;
+      final List data = json.decode(resp.body) as List;
+      if (data.isEmpty) return null;
+      final item = data.first as Map<String, dynamic>;
+      final lat = double.tryParse(item['lat']?.toString() ?? '');
+      final lon = double.tryParse(item['lon']?.toString() ?? '');
+      if (lat == null || lon == null) return null;
+      return LatLng(lat, lon);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _resolveOrigin() async {
@@ -105,8 +122,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       _start = found;
     });
 
-    if (_start != null && _destination != null) {
-      _fetchRoute(_start!, _destination!);
+    if (_start != null && _destination != null && _selectedTransportMode != null) {
+      _fetchRoute(_start!, _destination!, _selectedTransportMode!);
     }
   }
 
@@ -127,8 +144,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       _destination = found;
     });
 
-    if (_start != null && _destination != null) {
-      _fetchRoute(_start!, _destination!);
+    if (_start != null && _destination != null && _selectedTransportMode != null) {
+      _fetchRoute(_start!, _destination!, _selectedTransportMode!);
     }
   }
 
@@ -142,9 +159,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         _destinationController.text = '${latlng.latitude.toStringAsFixed(5)}, ${latlng.longitude.toStringAsFixed(5)}';
       }
     });
-    // Fetch road route when both points are set
-    if (_start != null && _destination != null) {
-      _fetchRoute(_start!, _destination!);
+    // Fetch road route when both points are set and transport mode is selected
+    if (_start != null && _destination != null && _selectedTransportMode != null) {
+      _fetchRoute(_start!, _destination!, _selectedTransportMode!);
     }
   }
 
@@ -155,10 +172,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       if (pos != null) {
         final userLatLng = LatLng(pos.latitude, pos.longitude);
         if (mounted) {
-          // Center map and set a reasonable zoom
           _mapController.move(userLatLng, 15.0);
           setState(() {
-            // If no start set yet, populate start with user location
             _start ??= userLatLng;
           });
         }
@@ -171,21 +186,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return null;
-    }
+    if (!serviceEnabled) return null;
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return null;
-      }
+      if (permission == LocationPermission.denied) return null;
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      return null;
-    }
+    if (permission == LocationPermission.deniedForever) return null;
 
     try {
       return await Geolocator.getCurrentPosition();
@@ -195,46 +204,33 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   void _confirm() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Text(
-                'Select transport mode',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-            ),
-            for (final mode in _transportModes)
-              ListTile(
-                leading: const Icon(Icons.directions_transit),
-                title: Text(mode),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => RouteRecorderScreen(
-                        startPoint: _start!,
-                        destination: _destination!,
-                        startLocationName: _originController.text.trim(),
-                        endLocationName: _destinationController.text.trim(),
-                        transportMode: mode,
-                        userId: widget.userId,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            const SizedBox(height: 8),
-          ],
+    if (_start == null || _destination == null || _selectedTransportMode == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RouteRecorderScreen(
+          startPoint: _start!,
+          destination: _destination!,
+          startLocationName: _originController.text.trim(),
+          endLocationName: _destinationController.text.trim(),
+          transportMode: _selectedTransportMode!,
+          userId: widget.userId,
         ),
       ),
     );
+  }
+
+  void _selectTransportMode(String mode) {
+    setState(() {
+      _selectedTransportMode = mode;
+    });
+
+    // Fetch route when transport mode is selected
+    if (_start != null && _destination != null) {
+      _fetchRoute(_start!, _destination!, mode);
+    }
+
+    Navigator.of(context).pop();
   }
 
   @override
@@ -256,23 +252,30 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             ),
             children: [
               TileLayer(
-                // Use the single host endpoint to avoid the flutter_map warning
-                // about subdomains and to be nicer to the public tile servers.
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                // OSM tile servers require a descriptive User-Agent or Referer
-                // including contact info for identification. Replace the
-                // placeholder email below with a real contact for your app.
                 tileProvider: NetworkTileProvider(
                   headers: {
                     'User-Agent': 'SafeRouteDev/0.1 (dev@yourdomain.com)'
                   },
                 ),
               ),
-              if (_routePoints.isNotEmpty)
+              // Display multi-segment route
+              if (_pathSegments != null && _pathSegments!.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    for (final segment in _pathSegments!)
+                      Polyline(
+                        points: segment.points,
+                        strokeWidth: 4,
+                        color: _getModeColor(segment.transportMode),
+                      ),
+                  ],
+                )
+              else if (_allRoutePoints.isNotEmpty)
                 PolylineLayer(
                   polylines: [
                     Polyline(
-                      points: _routePoints,
+                      points: _allRoutePoints,
                       strokeWidth: 4,
                       color: Colors.blueAccent,
                     ),
@@ -349,22 +352,100 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               ],
             ),
           ),
-          Positioned(
-            top: 128,
-            left: 12,
-            child: Material(
-              elevation: 2,
-              borderRadius: BorderRadius.circular(999),
-              color: Colors.white.withValues(alpha: 0.92),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Text(
-                  _start == null ? 'Tap map or search origin' : 'Tap map or search destination',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+
+          // Status indicator
+          if (_isLoadingRoute)
+            Positioned(
+              top: 128,
+              left: 12,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(999),
+                color: Colors.white.withValues(alpha: 0.92),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: SizedBox(
+                    width: 150,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 8),
+                        Text('Calculating route...', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else
+            Positioned(
+              top: 128,
+              left: 12,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(999),
+                color: Colors.white.withValues(alpha: 0.92),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text(
+                    _start == null
+                        ? 'Tap map or search origin'
+                        : _destination == null
+                            ? 'Tap map or search destination'
+                            : _selectedTransportMode == null
+                                ? 'Select a transport mode'
+                                : 'Ready to record',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ),
-          ),
+
+          // Route info when available
+          if (_pathSegments != null && _pathSegments!.isNotEmpty)
+            Positioned(
+              top: 165,
+              left: 12,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withValues(alpha: 0.95),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final segment in _pathSegments!)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: _getModeColor(segment.transportMode),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${segment.transportMode.toUpperCase()}: ${(segment.distance / 1000).toStringAsFixed(2)}km, ${(segment.duration / 60).toStringAsFixed(0)}min',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
       bottomNavigationBar: Padding(
@@ -388,8 +469,45 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             ),
             const SizedBox(width: 8),
             FilledButton(
-              onPressed: (_start == null || _destination == null || _originController.text.trim().isEmpty || _destinationController.text.trim().isEmpty) ? null : _confirm,
-              child: const Text('Select transport mode'),
+              onPressed: (_start == null || _destination == null || _originController.text.trim().isEmpty || _destinationController.text.trim().isEmpty)
+                  ? null
+                  : () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (sheetContext) => SafeArea(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                                child: Text(
+                                  'Select transport mode',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                              for (final mode in _transportModes)
+                                ListTile(
+                                  leading: Icon(Icons.directions_transit, color: _getModeColor(mode)),
+                                  title: Text(mode),
+                                  selected: _selectedTransportMode == mode,
+                                  onTap: () {
+                                    _selectTransportMode(mode);
+                                  },
+                                ),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+              child: const Text('Select transport'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: (_start == null || _destination == null || _selectedTransportMode == null) ? null : _confirm,
+              child: const Text('Start'),
             ),
           ],
         ),
