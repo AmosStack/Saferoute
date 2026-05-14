@@ -18,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   CommutePeriod _selectedPeriod = CommutePeriod.evening;
+  final List<Map<String, dynamic>> _myRoutes = [];
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +53,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     routes: safeRouteRecommendations,
                     insights: transportInsights,
                     userName: widget.user?.name,
+                    myRoutes: _myRoutes,
+                    onSaveRoute: (route) {
+                      setState(() {
+                        _myRoutes.insert(0, route);
+                      });
+                    },
                   ),
                 1 => _RoutesTab(
                     key: const ValueKey('routes'),
@@ -105,11 +112,13 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _OverviewTab extends StatelessWidget {
-  const _OverviewTab({super.key, required this.routes, required this.insights, this.userName});
+  const _OverviewTab({super.key, required this.routes, required this.insights, this.userName, required this.myRoutes, this.onSaveRoute});
 
   final List<SafeRouteRecommendation> routes;
   final List<TransportInsight> insights;
   final String? userName;
+  final List<Map<String, dynamic>> myRoutes;
+  final ValueChanged<Map<String, dynamic>>? onSaveRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -118,23 +127,70 @@ class _OverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
       children: [
-        _HeroCard(featuredRoute: featuredRoute, userName: userName),
+        _HeroCard(featuredRoute: featuredRoute, userName: userName, onSaveRoute: onSaveRoute),
         const SizedBox(height: 18),
-        const _SectionHeader(
-          title: 'Transport poverty snapshot',
-          subtitle: 'See where affordability and safety pressures overlap for women commuters.',
-        ),
-        const SizedBox(height: 12),
-        _MapPreviewCard(route: featuredRoute),
-        const SizedBox(height: 16),
         _InsightGrid(insights: insights),
+        _MyRoutesList(routes: myRoutes),
+      ],
+    );
+  }
+}
+
+class _MyRoutesList extends StatelessWidget {
+  const _MyRoutesList({required this.routes});
+
+  final List<Map<String, dynamic>> routes;
+
+  @override
+  Widget build(BuildContext context) {
+    if (routes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const SizedBox(height: 18),
         const _SectionHeader(
-          title: 'Best current route',
-          subtitle: 'A verified corridor selected from rider feedback and low-risk stop sequences.',
+          title: 'My routes history',
+          subtitle: 'Recent saved route searches',
         ),
         const SizedBox(height: 12),
-        _RoutePreviewCard(route: featuredRoute),
+        ...routes.map((r) {
+          final start = r['start'];
+          final dest = r['destination'];
+          final ts = r['timestamp'] ?? '';
+          final startStr = start != null ? '${start.latitude.toStringAsFixed(4)}, ${start.longitude.toStringAsFixed(4)}' : 'Unknown';
+          final destStr = dest != null ? '${dest.latitude.toStringAsFixed(4)}, ${dest.longitude.toStringAsFixed(4)}' : 'Unknown';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.history, color: Color(0xFF274060)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$startStr → $destStr', style: const TextStyle(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 6),
+                        Text(ts, style: TextStyle(color: Colors.black.withValues(alpha: 0.64))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
       ],
     );
   }
@@ -245,10 +301,11 @@ class _CommunityTab extends StatelessWidget {
 }
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.featuredRoute, this.userName});
+  const _HeroCard({required this.featuredRoute, this.userName, this.onSaveRoute});
 
   final SafeRouteRecommendation featuredRoute;
   final String? userName;
+  final ValueChanged<Map<String, dynamic>>? onSaveRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -258,7 +315,7 @@ class _HeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF102B43), Color(0xFF0E7C7B), Color(0xFFB86B4B)],
+          colors: [Color.fromARGB(255, 13, 172, 84), Color.fromARGB(255, 14, 124, 56), Color.fromARGB(255, 88, 184, 75)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -346,6 +403,14 @@ class _HeroCard extends StatelessWidget {
                     if (result != null) {
                       final start = result['start'];
                       final dest = result['destination'];
+                      final saved = {
+                        'start': start,
+                        'destination': dest,
+                        'timestamp': DateTime.now().toIso8601String(),
+                      };
+                      try {
+                        onSaveRoute?.call(saved);
+                      } catch (_) {}
                       messenger.showSnackBar(SnackBar(
                         content: Text('Start: ${start?.latitude.toStringAsFixed(4)}, ${start?.longitude.toStringAsFixed(4)}; '
                             'Dest: ${dest?.latitude.toStringAsFixed(4)}, ${dest?.longitude.toStringAsFixed(4)}'),
@@ -368,108 +433,6 @@ class _HeroCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MapPreviewCard extends StatelessWidget {
-  const _MapPreviewCard({required this.route});
-
-  final SafeRouteRecommendation route;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 250,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF2E7D8), Color(0xFFE0E8E8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _MapGridPainter(),
-              ),
-            ),
-            Positioned(
-              left: 24,
-              top: 36,
-              child: _MapPin(label: route.origin, color: const Color(0xFF0E7C7B)),
-            ),
-            Positioned(
-              right: 28,
-              bottom: 38,
-              child: _MapPin(label: route.destination, color: const Color(0xFFC96B5C)),
-            ),
-            Positioned(
-              left: 76,
-              top: 96,
-              right: 76,
-              child: Transform.rotate(
-                angle: -0.18,
-                child: Container(
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0E7C7B).withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 52,
-              top: 152,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF274060).withValues(alpha: 0.8),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              left: 112,
-              top: 188,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFB86B4B).withValues(alpha: 0.88),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              left: 18,
-              right: 18,
-              bottom: 18,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Text(
-                  'Verified corridor, ${route.duration}, ${route.walkMinutes} min walk, ${route.transfers} transfer${route.transfers == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF102B43),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -544,17 +507,6 @@ class _InsightCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _RoutePreviewCard extends StatelessWidget {
-  const _RoutePreviewCard({required this.route});
-
-  final SafeRouteRecommendation route;
-
-  @override
-  Widget build(BuildContext context) {
-    return _RouteCard(route: route);
   }
 }
 
@@ -1027,61 +979,4 @@ class _BackdropCircle extends StatelessWidget {
       decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
   }
-}
-
-class _MapPin extends StatelessWidget {
-  const _MapPin({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.location_on, color: color, size: 18),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final roadPaint = Paint()
-      ..color = const Color(0xFF102B43).withValues(alpha: 0.08)
-      ..strokeWidth = 2.4
-      ..style = PaintingStyle.stroke;
-
-    const gap = 28.0;
-    for (var x = 0.0; x <= size.width; x += gap) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), roadPaint);
-    }
-    for (var y = 0.0; y <= size.height; y += gap) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), roadPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
