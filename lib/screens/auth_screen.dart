@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/auth_models.dart';
 import '../services/auth_service.dart';
+import 'backend_url_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.onAuthenticated});
@@ -120,6 +121,18 @@ class _AuthScreenState extends State<AuthScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : () => showBackendUrlDialog(context),
+                                  icon: const Icon(Icons.link_outlined),
+                                  tooltip: 'Backend URL',
+                                ),
+                              ],
+                            ),
                             Text(
                               _isRegisterMode ? 'Create your account' : 'Welcome back',
                               style: const TextStyle(
@@ -195,8 +208,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                 prefixIcon: Icon(Icons.lock_outline),
                               ),
                               validator: (value) {
-                                if (value == null || value.length < 6) {
-                                  return 'Password must be at least 6 characters';
+                                if (value == null || value.length < 8) {
+                                  return 'Password must be at least 8 characters';
                                 }
                                 return null;
                               },
