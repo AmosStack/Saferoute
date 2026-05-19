@@ -4,6 +4,7 @@ import '../auth/auth_models.dart';
 import 'map_picker_screen.dart';
 import '../data/mock_data.dart';
 import '../models/safe_route.dart';
+import 'backend_url_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.user, this.onSignOut});
@@ -32,6 +33,11 @@ class _HomeScreenState extends State<HomeScreen> {
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
+          IconButton(
+            onPressed: () => showBackendUrlDialog(context),
+            icon: const Icon(Icons.link_outlined),
+            tooltip: 'Backend URL',
+          ),
           if (widget.onSignOut != null)
             IconButton(
               onPressed: widget.onSignOut,
