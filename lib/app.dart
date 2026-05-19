@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth/auth_models.dart';
 import 'screens/auth_screen.dart';
+import 'services/backend_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
@@ -25,6 +26,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
 
   Future<void> _bootstrap() async {
     final result = await Future.wait<dynamic>([
+      BackendService.initialize(),
       Future<void>.delayed(const Duration(seconds: 2)),
       AuthService.instance.getStoredSession(),
     ]);
