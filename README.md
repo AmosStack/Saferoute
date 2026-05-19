@@ -19,7 +19,15 @@ flutter pub get
 flutter run
 ```
 
-To connect the app to the backend API, ensure the backend server is running on `http://localhost:3000` (or set the appropriate base URL in [lib/services/backend_service.dart](lib/services/backend_service.dart)).
+To connect the app to the backend API, ensure the backend server is running on `http://localhost:3000`.
+
+If you are running on a physical Android phone and disconnect USB, `adb reverse` stops working. In that case, start the app with a LAN base URL, for example:
+
+```bash
+flutter run --dart-define=SAFE_ROUTE_API_BASE_URL=http://192.168.1.50:3000
+```
+
+Use your computer's real IP address on the local network.
 
 ### Recording Routes
 
