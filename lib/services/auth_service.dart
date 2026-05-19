@@ -46,6 +46,11 @@ class AuthService {
         throw AuthException('Registration failed. Please try again.');
       }
 
+      final error = result['error'] as String?;
+      if (error != null && error.isNotEmpty) {
+        throw AuthException(error);
+      }
+
       final token = result['token'] as String?;
       final userJson = result['user'] as Map<String, dynamic>?;
 
@@ -67,6 +72,8 @@ class AuthService {
       await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
 
       return session;
+    } on AuthException {
+      rethrow;
     } catch (e) {
       throw AuthException('Registration failed: $e');
     }
@@ -86,6 +93,11 @@ class AuthService {
 
       if (result == null) {
         throw AuthException('Invalid email or password.');
+      }
+
+      final error = result['error'] as String?;
+      if (error != null && error.isNotEmpty) {
+        throw AuthException(error);
       }
 
       final token = result['token'] as String?;
@@ -109,6 +121,8 @@ class AuthService {
       await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
 
       return session;
+    } on AuthException {
+      rethrow;
     } catch (e) {
       throw AuthException('Login failed: $e');
     }
@@ -156,4 +170,7 @@ class AuthException implements Exception {
   const AuthException(this.message);
 
   final String message;
+
+  @override
+  String toString() => message;
 }
