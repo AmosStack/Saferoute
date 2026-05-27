@@ -1,0 +1,55 @@
+{% extends "dashboard/base.html" %}
+{% block title %}SafeRoute Admin Overview{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Operations Overview</h1>
+    <div class="subtle">Live database summary for commuters, recorded routes, and safety signals.</div>
+  </div>
+  <a class="button primary" href="/dashboard/users/new">New user</a>
+</div>
+
+<div class="grid metrics">
+  <div class="card metric"><span>Users</span><strong>{{ metrics.users }}</strong></div>
+  <div class="card metric"><span>Recorded routes</span><strong>{{ metrics.recorded_routes }}</strong></div>
+  <div class="card metric"><span>Total distance</span><strong>{{ metrics.distance_km }} km</strong></div>
+  <div class="card metric"><span>Average rating</span><strong>{{ metrics.average_rating }}</strong></div>
+</div>
+
+<div class="grid two" style="margin-top:16px;">
+  <section class="card">
+    <div class="section-title">
+      <h2>Recent routes</h2>
+      <a class="button" href="/dashboard/routes">View all</a>
+    </div>
+    <table>
+      <thead><tr><th>User</th><th>Route</th><th>Mode</th><th>Distance</th><th>Rating</th></tr></thead>
+      <tbody>
+        {% for route in recent_routes %}
+        <tr>
+          <td>{{ route.user_name }}</td>
+          <td>{{ route.start_location_name }} to {{ route.end_location_name }}</td>
+          <td><span class="pill">{{ route.transport_mode }}</span></td>
+          <td>{{ route.distance_meters|floatformat:0 }} m</td>
+          <td>{{ route.rating|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">No routes recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <div class="section-title"><h2>Transport mix</h2></div>
+    {% for row in mode_rows %}
+    <div class="bar-row">
+      <div class="bar-meta"><strong>{{ row.transport_mode }}</strong><span>{{ row.route_count }} routes</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width: {{ row.width }}%;"></div></div>
+    </div>
+    {% empty %}
+    <div class="subtle">No transport data yet.</div>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}
