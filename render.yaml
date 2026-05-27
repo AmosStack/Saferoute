@@ -23,4 +23,5 @@ services:
       - key: GOOGLE_OAUTH_CLIENT_ID
         value: "105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com"
       - key: DATABASE_URL
+        value: "postgresql://saferoute_4jd4_user:E7N8rz32diGbqHwbb95pj6BE4KCPSmr4@dpg-d8bem7jbc2fs73c9i7h0-a/saferoute_4jd4"
         sync: false
