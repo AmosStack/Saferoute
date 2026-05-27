@@ -1,5 +1,8 @@
 {% extends "dashboard/base.html" %}
 {% block title %}SafeRoute Admin Overview{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+{% endblock %}
 {% block content %}
 <div class="topbar">
   <div>
@@ -12,21 +15,40 @@
 <div class="grid metrics">
   <div class="card metric"><span>Users</span><strong>{{ metrics.users }}</strong></div>
   <div class="card metric"><span>Recorded routes</span><strong>{{ metrics.recorded_routes }}</strong></div>
+  <div class="card metric"><span>Travel logs</span><strong>{{ metrics.travel_logs }}</strong></div>
   <div class="card metric"><span>Total distance</span><strong>{{ metrics.distance_km }} km</strong></div>
   <div class="card metric"><span>Average rating</span><strong>{{ metrics.average_rating }}</strong></div>
+  <div class="card metric"><span>Safety reports</span><strong>{{ metrics.safety_reports }}</strong></div>
+  <div class="card metric"><span>Incidents</span><strong>{{ metrics.incidents }}</strong></div>
 </div>
+
+<section class="card" style="margin-top:16px;">
+  <div class="section-title">
+    <h2>Route and complaint map</h2>
+    <span class="subtle">Routes are drawn as polylines. Complaints and incidents are pinned to the reported location.</span>
+  </div>
+  <div class="map-shell">
+    <div id="overview-map" class="map-canvas"></div>
+    <div class="map-legend">
+      <span><i class="dot" style="background:#0f7a5a;"></i>Recorded routes</span>
+      <span><i class="dot" style="background:#b42318;"></i>Complaints</span>
+      <span><i class="dot" style="background:#335c99;"></i>Travel log only</span>
+    </div>
+  </div>
+</section>
 
 <div class="grid two" style="margin-top:16px;">
   <section class="card">
     <div class="section-title">
-      <h2>Recent routes</h2>
+      <h2>Recent activity</h2>
       <a class="button" href="/dashboard/routes">View all</a>
     </div>
     <table>
-      <thead><tr><th>User</th><th>Route</th><th>Mode</th><th>Distance</th><th>Rating</th></tr></thead>
+      <thead><tr><th>Source</th><th>User</th><th>Route</th><th>Mode</th><th>Distance</th><th>Rating</th></tr></thead>
       <tbody>
         {% for route in recent_routes %}
         <tr>
+          <td><span class="pill">{{ route.source }}</span></td>
           <td>{{ route.user_name }}</td>
           <td>{{ route.start_location_name }} to {{ route.end_location_name }}</td>
           <td><span class="pill">{{ route.transport_mode }}</span></td>
@@ -34,7 +56,7 @@
           <td>{{ route.rating|default:"-" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5">No routes recorded yet.</td></tr>
+        <tr><td colspan="6">No route activity yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -52,4 +74,93 @@
     {% endfor %}
   </section>
 </div>
+
+<section class="card" style="margin-top:16px;">
+  <div class="section-title">
+    <h2>Complaint hot spots</h2>
+    <span class="subtle">Grouped from safety reports and incidents with a location attached.</span>
+  </div>
+  <table>
+    <thead><tr><th>Location</th><th>Complaints</th><th>Safety reports</th><th>Incidents</th><th>Latest report</th></tr></thead>
+    <tbody>
+      {% for complaint in complaint_map_data %}
+      <tr>
+        <td>{{ complaint.location_name }}</td>
+        <td>{{ complaint.complaint_count }}</td>
+        <td>{{ complaint.safety_reports }}</td>
+        <td>{{ complaint.incidents }}</td>
+        <td>{{ complaint.sample_description|default:"-" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No complaints with a mapped location yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ route_map_data|json_script:"overview-route-map-data" }}
+{{ complaint_map_data|json_script:"overview-complaint-map-data" }}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+  const routeData = JSON.parse(document.getElementById('overview-route-map-data').textContent || '[]');
+  const complaintData = JSON.parse(document.getElementById('overview-complaint-map-data').textContent || '[]');
+  const map = L.map('overview-map', { scrollWheelZoom: false });
+  const routeLayer = L.featureGroup().addTo(map);
+  const complaintLayer = L.featureGroup().addTo(map);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map);
+
+  const bounds = [];
+
+  routeData.forEach((route) => {
+    const points = (route.coordinates || [])
+      .map((point) => [Number(point.lat), Number(point.lng)])
+      .filter((point) => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+    if (!points.length) return;
+
+    const polyline = L.polyline(points, { color: '#0f7a5a', weight: 4, opacity: 0.8 }).addTo(routeLayer);
+    polyline.bindPopup(`<strong>${route.user_name}</strong><br>${route.start_location_name} → ${route.end_location_name}<br>${route.transport_mode}`);
+    bounds.push(...points);
+
+    const first = points[0];
+    const last = points[points.length - 1];
+    L.circleMarker(first, { radius: 5, color: '#0f7a5a', fillColor: '#0f7a5a', fillOpacity: 1 }).addTo(routeLayer);
+    L.circleMarker(last, { radius: 5, color: '#335c99', fillColor: '#335c99', fillOpacity: 1 }).addTo(routeLayer);
+  });
+
+  complaintData.forEach((complaint) => {
+    const lat = Number(complaint.latitude);
+    const lng = Number(complaint.longitude);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+    const marker = L.circleMarker([lat, lng], {
+      radius: Math.max(7, Math.min(16, 6 + Number(complaint.complaint_count || 0))),
+      color: '#b42318',
+      fillColor: '#b42318',
+      fillOpacity: 0.4,
+      weight: 2,
+    }).addTo(complaintLayer);
+    marker.bindPopup(
+      `<strong>${complaint.location_name}</strong><br>` +
+      `Complaints: ${complaint.complaint_count}<br>` +
+      `Safety reports: ${complaint.safety_reports}<br>` +
+      `Incidents: ${complaint.incidents}<br>` +
+      `${complaint.sample_description || ''}`
+    );
+    bounds.push([lat, lng]);
+  });
+
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [24, 24] });
+  } else {
+    map.setView([0, 0], 2);
+  }
+})();
+</script>
 {% endblock %}
