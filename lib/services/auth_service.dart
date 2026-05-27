@@ -15,7 +15,8 @@ class AuthService {
   static const String _sessionKey = 'auth_session';
   static const String _googleOAuthClientId = String.fromEnvironment(
     'GOOGLE_OAUTH_CLIENT_ID',
-    defaultValue: '105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com',
+    defaultValue:
+        '105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com',
   );
 
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -174,7 +175,10 @@ class AuthService {
         token: token,
         user: AuthUser(
           id: userJson['id'] as int? ?? 0,
-          name: userJson['name'] as String? ?? googleAccount.displayName ?? 'Google User',
+          name:
+              userJson['name'] as String? ??
+              googleAccount.displayName ??
+              'Google User',
           email: userJson['email'] as String? ?? googleAccount.email,
           phone: '',
         ),
