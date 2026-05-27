@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_models.dart';
+import '../l10n/app_strings.dart';
 import '../models/user_settings.dart';
 import '../services/user_settings_service.dart';
 
@@ -83,7 +84,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       _saving = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile saved')));
+    final strings = AppStrings(_localeCode);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(strings.profileSaved)));
   }
 
   Future<void> _resetProfile() async {
@@ -110,6 +112,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   Future<void> _editContact({TrustedContact? existing}) async {
+    final strings = AppStrings(_localeCode);
     final nameController = TextEditingController(text: existing?.name ?? '');
     final phoneController = TextEditingController(text: existing?.phone ?? '');
     final relationshipController = TextEditingController(text: existing?.relationship ?? '');
@@ -119,26 +122,26 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(existing == null ? 'Add trusted contact' : 'Edit trusted contact'),
+          title: Text(existing == null ? strings.addTrustedContact : strings.editTrustedContact),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Name'),
+                  decoration: InputDecoration(labelText: strings.name),
                 ),
                 TextField(
                   controller: phoneController,
-                  decoration: const InputDecoration(labelText: 'Phone number'),
+                  decoration: InputDecoration(labelText: strings.phoneNumber),
                 ),
                 TextField(
                   controller: relationshipController,
-                  decoration: const InputDecoration(labelText: 'Relationship'),
+                  decoration: InputDecoration(labelText: strings.relationship),
                 ),
                 TextField(
                   controller: notesController,
-                  decoration: const InputDecoration(labelText: 'Notes'),
+                  decoration: InputDecoration(labelText: strings.notes),
                   maxLines: 2,
                 ),
               ],
@@ -147,7 +150,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
               onPressed: () {
@@ -155,7 +158,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 final phone = phoneController.text.trim();
                 if (name.isEmpty || phone.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Name and phone are required')),
+                    SnackBar(content: Text(strings.namePhoneRequired)),
                   );
                   return;
                 }
@@ -169,7 +172,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                   ),
                 );
               },
-              child: const Text('Save'),
+              child: Text(strings.save),
             ),
           ],
         );
@@ -196,6 +199,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(_localeCode);
     if (_loading || _profile == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -204,19 +208,19 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
       children: [
         _SectionCard(
-          title: 'Account profile',
-          subtitle: 'Edit your name, email, phone, and a short bio.',
+          title: strings.accountProfile,
+          subtitle: strings.accountProfileSubtitle,
           child: Column(
             children: [
-              TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full name')),
+              TextField(controller: _nameController, decoration: InputDecoration(labelText: strings.fullName)),
               const SizedBox(height: 10),
-              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email')),
+              TextField(controller: _emailController, decoration: InputDecoration(labelText: strings.email)),
               const SizedBox(height: 10),
-              TextField(controller: _phoneController, decoration: const InputDecoration(labelText: 'Phone number')),
+              TextField(controller: _phoneController, decoration: InputDecoration(labelText: strings.phoneNumber)),
               const SizedBox(height: 10),
               TextField(
                 controller: _bioController,
-                decoration: const InputDecoration(labelText: 'Bio / safety notes'),
+                decoration: InputDecoration(labelText: strings.bioNotes),
                 maxLines: 3,
               ),
               const SizedBox(height: 14),
@@ -225,14 +229,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _saving ? null : _resetProfile,
-                      child: const Text('Reset'),
+                      child: Text(strings.reset),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
                       onPressed: _saving ? null : _saveProfile,
-                      child: _saving ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save profile'),
+                      child: _saving ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(strings.saveProfile),
                     ),
                   ),
                 ],
@@ -242,13 +246,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         ),
         const SizedBox(height: 14),
         _SectionCard(
-          title: 'App settings',
-          subtitle: 'Switch between English and Swahili.',
+          title: strings.appSettings,
+          subtitle: strings.appSettingsSubtitle,
           child: Row(
             children: [
               Expanded(
                 child: ChoiceChip(
-                  label: const Text('English'),
+                  label: Text(strings.english),
                   selected: _localeCode == 'en',
                   onSelected: (_) => _setLocale('en'),
                 ),
@@ -256,7 +260,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: ChoiceChip(
-                  label: const Text('Swahili'),
+                  label: Text(strings.swahili),
                   selected: _localeCode == 'sw',
                   onSelected: (_) => _setLocale('sw'),
                 ),
@@ -266,14 +270,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         ),
         const SizedBox(height: 14),
         _SectionCard(
-          title: 'Trusted people',
-          subtitle: 'Add family members or trusted people who can receive SOS messages.',
+          title: strings.trustedPeople,
+          subtitle: strings.trustedPeopleSubtitle,
           child: Column(
             children: [
               if (_contacts.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(bottom: 12),
-                  child: Text('No trusted people added yet.'),
+                  child: Text(strings.noTrustedPeople),
                 ),
               ..._contacts.map(
                 (contact) => Padding(
@@ -291,7 +295,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 child: FilledButton.icon(
                   onPressed: () => _editContact(),
                   icon: const Icon(Icons.person_add),
-                  label: const Text('Add trusted person'),
+                  label: Text(strings.addTrustedPerson),
                 ),
               ),
             ],
@@ -299,13 +303,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         ),
         const SizedBox(height: 14),
         _SectionCard(
-          title: 'Safety note',
-          subtitle: 'During a journey, the SOS action can message your trusted contacts with your live location and a short alert.',
-          child: Text(
-            widget.localeCode == 'sw'
-                ? 'Mfumo wa SOS hutuma ujumbe mfupi pamoja na eneo lako kwa watu uliochagua.'
-                : 'The SOS button sends a short message and your current location to the people you selected.',
-          ),
+          title: strings.safetyNote,
+          subtitle: strings.safetyNoteSubtitle,
+          child: Text(strings.sosExplanation),
         ),
       ],
     );
