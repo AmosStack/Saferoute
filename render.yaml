@@ -14,7 +14,7 @@ services:
       - key: DJANGO_ALLOWED_HOSTS
         value: ".onrender.com"
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
-        value: "https://saferoute-api.onrender.com"
+        value: "https://saferoute-api-jk60.onrender.com"
       - key: DASHBOARD_USERNAME
         value: "admin"
       - key: DASHBOARD_PASSWORD
