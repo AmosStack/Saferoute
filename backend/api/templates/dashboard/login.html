@@ -2,20 +2,25 @@
 
 {% block title %}Login - SafeRoute Admin{% endblock %}
 
-{% block content %}
-  <h1>Admin sign in</h1>
-  {% if error %}
-    <div class="error">{{ error }}</div>
-  {% endif %}
-  <form method="post" action="/dashboard/login">
-    <label>Username
-      <input name="username" type="text" required>
-    </label>
-    <label>Password
-      <input name="password" type="password" required>
-    </label>
-    <div>
-      <button class="button primary" type="submit">Sign in</button>
-    </div>
-  </form>
+{% block body %}
+  <main class="auth-page">
+    <section class="auth-card">
+      <div class="auth-brand">
+        <strong>SafeRoute Admin</strong>
+        <span>Sign in to manage users, routes, and safety reports.</span>
+      </div>
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+      <form class="auth-form" method="post" action="/dashboard/login">
+        <label>Username
+          <input name="username" type="text" autocomplete="username" required autofocus>
+        </label>
+        <label>Password
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="button primary" type="submit">Sign in</button>
+      </form>
+    </section>
+  </main>
 {% endblock %}

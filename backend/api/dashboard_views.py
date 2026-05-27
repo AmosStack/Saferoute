@@ -1,6 +1,7 @@
 import base64
 from decimal import Decimal
 import json
+import logging
 import os
 from functools import wraps
 
@@ -14,6 +15,7 @@ from django.views.decorators.http import require_POST
 
 from .db import ensure_schema
 
+logger = logging.getLogger(__name__)
 signer = Signer()
 
 
@@ -307,6 +309,14 @@ def _complaint_map_rows(limit: int = 100):
         return rows
 
 
+def _safe_dashboard_rows(label: str, callback):
+    try:
+        return callback()
+    except Exception:
+        logger.exception("Dashboard overview widget failed: %s", label)
+        return []
+
+
 @_dashboard_auth
 def dashboard_home(request: HttpRequest):
     ensure_schema()
@@ -327,9 +337,9 @@ def dashboard_home(request: HttpRequest):
     for row in mode_rows:
         row["width"] = int((row["route_count"] / max_count) * 100)
 
-    recent_routes = _recent_activity_rows()
-    route_map_data = _route_map_rows()
-    complaint_map_data = _complaint_map_rows()
+    recent_routes = _safe_dashboard_rows("recent activity", _recent_activity_rows)
+    route_map_data = _safe_dashboard_rows("route map", _route_map_rows)
+    complaint_map_data = _safe_dashboard_rows("complaint map", _complaint_map_rows)
 
     return render(
         request,
