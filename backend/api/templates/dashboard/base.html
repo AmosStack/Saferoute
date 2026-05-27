@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}SafeRoute Admin{% endblock %}</title>
+  {% block extra_head %}{% endblock %}
   <style>
     :root {
       color-scheme: light;
@@ -117,6 +118,37 @@
     .detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .detail-list div { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfdfc; }
     .detail-list span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+    .map-shell { display: grid; gap: 12px; }
+    .map-canvas {
+      width: 100%;
+      height: 420px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      background: #eef4ef;
+    }
+    .map-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .map-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
     @media (max-width: 900px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { position: static; }
@@ -145,5 +177,6 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>
