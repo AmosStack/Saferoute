@@ -19,5 +19,7 @@ services:
         value: "admin"
       - key: DASHBOARD_PASSWORD
         sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        value: "105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com"
       - key: DATABASE_URL
         sync: false
