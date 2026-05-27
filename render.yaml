@@ -18,6 +18,7 @@ services:
       - key: DASHBOARD_USERNAME
         value: "admin"
       - key: DASHBOARD_PASSWORD
+        value: "admin123"
         sync: false
       - key: GOOGLE_OAUTH_CLIENT_ID
         value: "105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com"
