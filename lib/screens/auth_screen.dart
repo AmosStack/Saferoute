@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../auth/auth_models.dart';
 import '../services/auth_service.dart';
-import 'backend_url_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.onAuthenticated});
@@ -130,18 +129,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  onPressed: _isSubmitting
-                                      ? null
-                                      : () => showBackendUrlDialog(context),
-                                  icon: const Icon(Icons.link_outlined),
-                                  tooltip: 'Backend URL',
-                                ),
-                              ],
-                            ),
                             Text(
                               _isRegisterMode
                                   ? 'Create your account'
@@ -269,7 +256,10 @@ class _AuthScreenState extends State<AuthScreen> {
                               onPressed: _isSubmitting
                                   ? null
                                   : _continueWithGoogle,
-                              icon: const Icon(Icons.account_circle_outlined),
+                              icon: const _SocialMark(
+                                text: 'G',
+                                color: Color(0xFF1A73E8),
+                              ),
                               label: const Text('Continue with Google'),
                             ),
                             const SizedBox(height: 10),
@@ -277,7 +267,10 @@ class _AuthScreenState extends State<AuthScreen> {
                               onPressed: _isSubmitting
                                   ? null
                                   : _continueWithFacebook,
-                              icon: const Icon(Icons.public_outlined),
+                              icon: const _SocialMark(
+                                text: 'f',
+                                color: Color(0xFF1877F2),
+                              ),
                               label: const Text('Continue with Facebook'),
                             ),
                           ],
@@ -297,6 +290,31 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _SocialMark extends StatelessWidget {
+  const _SocialMark({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 22,
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            height: 1,
+          ),
+        ),
       ),
     );
   }
