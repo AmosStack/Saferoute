@@ -8,10 +8,13 @@ except ImportError:  # pragma: no cover - optional compatibility path
     legacy_bcrypt = None
 
 from django.contrib.auth.hashers import check_password, make_password
+from django.conf import settings
 from django.db import connection
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
 from .db import ensure_schema
 
@@ -133,6 +136,55 @@ def login(request: HttpRequest) -> JsonResponse:
         return JsonResponse(_build_session({"id": user_id, "name": user_name, "email": user_email}))
     except Exception as exc:
         return _server_error(f"Login failed: {exc}")
+
+
+@csrf_exempt
+@require_POST
+def google_login(request: HttpRequest) -> JsonResponse:
+    try:
+        ensure_schema()
+        payload = _decode_request(request)
+        token = str(payload.get("idToken") or "")
+        if not token:
+            return _bad_request("Google ID token is required.")
+
+        google_user = google_id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            settings.GOOGLE_OAUTH_CLIENT_ID,
+        )
+
+        email = str(google_user.get("email") or "").strip().lower()
+        name = str(google_user.get("name") or email.split("@")[0]).strip()
+
+        if not email or not google_user.get("email_verified", False):
+            return _unauthorized("Google account email is not verified.")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, name, email FROM saferoute.users WHERE email = %s LIMIT 1",
+                [email],
+            )
+            row = cursor.fetchone()
+
+            if row:
+                user_id, user_name, user_email = row
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO saferoute.users (name, email, password_hash)
+                    VALUES (%s, %s, %s)
+                    RETURNING id, name, email
+                    """,
+                    [name, email, make_password(str(uuid.uuid4()))],
+                )
+                user_id, user_name, user_email = cursor.fetchone()
+
+        return JsonResponse(_build_session({"id": user_id, "name": user_name, "email": user_email}))
+    except ValueError:
+        return _unauthorized("Invalid Google sign-in token.")
+    except Exception as exc:
+        return _server_error(f"Google login failed: {exc}")
 
 
 @csrf_exempt
