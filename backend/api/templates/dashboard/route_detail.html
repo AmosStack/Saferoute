@@ -1,5 +1,8 @@
 {% extends "dashboard/base.html" %}
 {% block title %}Route Detail - SafeRoute Admin{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+{% endblock %}
 {% block content %}
 <div class="topbar">
   <div>
@@ -25,6 +28,14 @@
 
 <section class="card" style="margin-top:16px;">
   <div class="section-title">
+    <h2>Route map</h2>
+    <span class="subtle">Start, end, and full coordinate path</span>
+  </div>
+  <div id="route-detail-map" class="map-canvas"></div>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <div class="section-title">
     <h2>Coordinate sample</h2>
     <span class="subtle">{{ point_count }} total points</span>
   </div>
@@ -39,4 +50,41 @@
     </tbody>
   </table>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ route_map_data|json_script:"route-detail-map-data" }}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+  const route = JSON.parse(document.getElementById('route-detail-map-data').textContent || '{}');
+  const map = L.map('route-detail-map', { scrollWheelZoom: false });
+  const routeLayer = L.featureGroup().addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map);
+
+  const points = (route.coordinates || [])
+    .map((point) => [Number(point.lat), Number(point.lng)])
+    .filter((point) => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
+
+  if (points.length) {
+    L.polyline(points, { color: '#0f7a5a', weight: 4 }).addTo(routeLayer);
+    L.marker(points[0]).addTo(routeLayer).bindPopup(route.start_location_name || 'Start');
+    L.marker(points[points.length - 1]).addTo(routeLayer).bindPopup(route.end_location_name || 'End');
+    map.fitBounds(points, { padding: [24, 24] });
+  } else {
+    const start = [Number(route.start_latitude), Number(route.start_longitude)];
+    const end = [Number(route.end_latitude), Number(route.end_longitude)];
+    if (!Number.isNaN(start[0]) && !Number.isNaN(start[1])) {
+      L.marker(start).addTo(routeLayer).bindPopup(route.start_location_name || 'Start');
+    }
+    if (!Number.isNaN(end[0]) && !Number.isNaN(end[1])) {
+      L.marker(end).addTo(routeLayer).bindPopup(route.end_location_name || 'End');
+    }
+    map.fitBounds([start, end], { padding: [24, 24] });
+  }
+})();
+</script>
 {% endblock %}
