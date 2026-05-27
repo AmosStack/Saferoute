@@ -1,13 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/recorded_route.dart';
 
 class BackendService {
   static const String _baseUrlPrefKey = 'backend_base_url';
+  static const Duration _requestTimeout = Duration(seconds: 3);
+  static const String _defaultLanFallbackHost = String.fromEnvironment(
+    'SAFE_ROUTE_LAN_FALLBACK_HOST',
+    defaultValue: '192.168.1.20',
+  );
   static String? _configuredBaseUrl;
 
   static Future<void> initialize() async {
@@ -42,28 +46,65 @@ class BackendService {
     _configuredBaseUrl = trimmed;
   }
 
+  static String _baseUrlFromHost(String hostOrUrl) {
+    final trimmed = hostOrUrl.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return _stripTrailingSlash(trimmed);
+    }
+
+    return 'http://$trimmed:3000';
+  }
+
+  static String _stripTrailingSlash(String value) {
+    var result = value.trim();
+    while (result.endsWith('/')) {
+      result = result.substring(0, result.length - 1);
+    }
+    return result;
+  }
+
+  static void _addCandidate(List<String> candidates, String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return;
+    }
+
+    final normalized = _stripTrailingSlash(trimmed);
+    if (!candidates.contains(normalized)) {
+      candidates.add(normalized);
+    }
+  }
+
   static List<String> get _baseUrlCandidates {
     const override = String.fromEnvironment('SAFE_ROUTE_API_BASE_URL');
     if (override.isNotEmpty) {
-      return [override];
+      return [_stripTrailingSlash(override)];
+    }
+
+    final candidates = <String>[];
+
+    const serverHost = String.fromEnvironment('SAFE_ROUTE_SERVER_HOST');
+    if (serverHost.isNotEmpty) {
+      _addCandidate(candidates, _baseUrlFromHost(serverHost));
     }
 
     if (_configuredBaseUrl != null && _configuredBaseUrl!.isNotEmpty) {
-      return [_configuredBaseUrl!];
+      _addCandidate(candidates, _configuredBaseUrl);
     }
 
     if (kIsWeb) {
-      return ['http://localhost:3000'];
+      _addCandidate(candidates, 'http://localhost:3000');
+      return candidates;
     }
 
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return [
-          'http://localhost:3000',
-          'http://10.0.2.2:3000',
-        ];
+        _addCandidate(candidates, _baseUrlFromHost(_defaultLanFallbackHost));
+        _addCandidate(candidates, 'http://10.0.2.2:3000');
+        return candidates;
       default:
-        return ['http://localhost:3000'];
+        _addCandidate(candidates, 'http://localhost:3000');
+        return candidates;
     }
   }
 
@@ -78,11 +119,13 @@ class BackendService {
     for (final baseUrl in _baseUrlCandidates) {
       try {
         final uri = Uri.parse('$baseUrl$path');
-        return await http.post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        );
+        return await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+            .timeout(_requestTimeout);
       } catch (e) {
         lastError = e;
       }
@@ -97,7 +140,7 @@ class BackendService {
     for (final baseUrl in _baseUrlCandidates) {
       try {
         final uri = Uri.parse('$baseUrl$path');
-        return await http.get(uri);
+        return await http.get(uri).timeout(_requestTimeout);
       } catch (e) {
         lastError = e;
       }
@@ -117,15 +160,12 @@ class BackendService {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
 
-      return {
-        'error': response.body,
-        'statusCode': response.statusCode,
-      };
+      return {'error': response.body, 'statusCode': response.statusCode};
     } catch (e) {
       return {
         'error': kIsWeb
             ? 'Unable to connect to the backend. Check the server URL and make sure the backend is running.'
-            : 'Unable to connect to the backend. If you are on a physical Android phone, keep `adb reverse tcp:3000 tcp:3000` active or set `SAFE_ROUTE_API_BASE_URL` / the in-app backend URL to your PC\'s LAN IP, then restart the app.',
+            : 'Unable to connect to the backend. If the phone is on mobile data or a different network, use a public HTTPS API URL with `SAFE_ROUTE_API_BASE_URL` or set the in-app Backend URL.',
         'exception': e.toString(),
       };
     }
@@ -221,7 +261,10 @@ class BackendService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final routes = (data['routes'] as List?)
-            ?.map((routeJson) => RecordedRoute.fromJson(routeJson as Map<String, dynamic>))
+            ?.map(
+              (routeJson) =>
+                  RecordedRoute.fromJson(routeJson as Map<String, dynamic>),
+            )
             .toList();
         return routes ?? [];
       } else {
@@ -267,7 +310,9 @@ class BackendService {
   /// Create or get transport mode
   static Future<int?> createTransportMode(String name) async {
     try {
-      final response = await _postWithFallback('/transport-modes', {'name': name});
+      final response = await _postWithFallback('/transport-modes', {
+        'name': name,
+      });
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
