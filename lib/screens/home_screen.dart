@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_models.dart';
+import '../l10n/app_strings.dart';
 import '../models/recorded_route.dart';
 import '../services/backend_service.dart';
 import 'map_picker_screen.dart';
@@ -68,14 +69,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(widget.localeCode);
     final pages = [
       _HomeLandingPage(
+        localeCode: widget.localeCode,
         user: widget.user,
         onOpenMap: _openRouteMap,
         onGoToRoutes: () => _switchTab(1),
         onGoToCommunity: () => _switchTab(2),
       ),
       _RouteHistoryPage(
+        localeCode: widget.localeCode,
         routesFuture: _routesFuture,
         onRefresh: _reloadRoutes,
       ),
@@ -92,7 +96,9 @@ class _HomeScreenState extends State<HomeScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          widget.user == null ? 'SafeRoute' : 'SafeRoute · ${widget.user!.name}',
+          widget.user == null
+              ? strings.appName
+              : '${strings.appName} - ${widget.user!.name}',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -100,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
             IconButton(
               onPressed: widget.onSignOut,
               icon: const Icon(Icons.logout_outlined),
-              tooltip: 'Sign out',
+              tooltip: strings.signOut,
             ),
         ],
       ),
@@ -113,21 +119,21 @@ class _HomeScreenState extends State<HomeScreen> {
         onDestinationSelected: _switchTab,
         backgroundColor: Colors.white.withValues(alpha: 0.88),
         indicatorColor: const Color(0xFF0E7C7B).withValues(alpha: 0.16),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: strings.home,
           ),
           NavigationDestination(
-            icon: Icon(Icons.alt_route_outlined),
-            selectedIcon: Icon(Icons.alt_route),
-            label: 'Routes',
+            icon: const Icon(Icons.alt_route_outlined),
+            selectedIcon: const Icon(Icons.alt_route),
+            label: strings.routes,
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outlined),
-            selectedIcon: Icon(Icons.person),
-            label: 'Community',
+            icon: const Icon(Icons.person_outlined),
+            selectedIcon: const Icon(Icons.person),
+            label: strings.community,
           ),
         ],
       ),
@@ -137,12 +143,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _HomeLandingPage extends StatelessWidget {
   const _HomeLandingPage({
+    required this.localeCode,
     required this.user,
     required this.onOpenMap,
     required this.onGoToRoutes,
     required this.onGoToCommunity,
   });
 
+  final String localeCode;
   final AuthUser? user;
   final VoidCallback onOpenMap;
   final VoidCallback onGoToRoutes;
@@ -150,12 +158,13 @@ class _HomeLandingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(localeCode);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
       children: [
-        _HeroCard(user: user, onOpenMap: onOpenMap),
+        _HeroCard(localeCode: localeCode, user: user, onOpenMap: onOpenMap),
         const SizedBox(height: 14),
-        const Text('Quick actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        Text(strings.quickActions, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
         GridView.count(
           crossAxisCount: 2,
@@ -166,35 +175,35 @@ class _HomeLandingPage extends StatelessWidget {
           childAspectRatio: 1.05,
           children: [
             _ActionTile(
-              title: 'Select location',
-              subtitle: 'Open map and pick start and destination.',
+              title: strings.selectLocation,
+              subtitle: strings.selectLocationSubtitle,
               icon: Icons.place_outlined,
               onTap: onOpenMap,
             ),
             _ActionTile(
-              title: 'Choose transport',
-              subtitle: 'Open map and choose walking, car, bus, or bike.',
+              title: strings.chooseTransport,
+              subtitle: strings.chooseTransportSubtitle,
               icon: Icons.directions_car_outlined,
               onTap: onOpenMap,
             ),
             _ActionTile(
-              title: 'Trusted people',
-              subtitle: 'Add family or trusted contacts for SOS messages.',
+              title: strings.trustedPeople,
+              subtitle: strings.trustedPeopleSubtitle,
               icon: Icons.shield_outlined,
               onTap: onGoToCommunity,
             ),
             _ActionTile(
-              title: 'Travel history',
-              subtitle: 'See saved routes from your previous journeys.',
+              title: strings.travelHistory,
+              subtitle: strings.travelHistorySubtitle,
               icon: Icons.route_outlined,
               onTap: onGoToRoutes,
             ),
           ],
         ),
         const SizedBox(height: 18),
-        const _InfoCard(
-          title: 'Safety first',
-          subtitle: 'The journey map includes live tracking and an SOS action that can send your location by SMS.',
+        _InfoCard(
+          title: strings.safetyFirst,
+          subtitle: strings.safetyFirstSubtitle,
         ),
       ],
     );
@@ -202,13 +211,19 @@ class _HomeLandingPage extends StatelessWidget {
 }
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.user, required this.onOpenMap});
+  const _HeroCard({
+    required this.localeCode,
+    required this.user,
+    required this.onOpenMap,
+  });
 
+  final String localeCode;
   final AuthUser? user;
   final VoidCallback onOpenMap;
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(localeCode);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -223,12 +238,12 @@ class _HeroCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            user == null ? 'Plan your next trip' : 'Welcome, ${user!.name}',
+            user == null ? strings.planTrip : strings.welcomeUser(user!.name),
             style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
-            'Open the map, pick a transport mode, save routes, and send SOS alerts when you travel.',
+            strings.heroSubtitle,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
           ),
           const SizedBox(height: 14),
@@ -238,7 +253,7 @@ class _HeroCard extends StatelessWidget {
               backgroundColor: Colors.white,
               foregroundColor: const Color(0xFF0E7C7B),
             ),
-            child: const Text('Open route map'),
+            child: Text(strings.openRouteMap),
           ),
         ],
       ),
@@ -317,13 +332,19 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _RouteHistoryPage extends StatelessWidget {
-  const _RouteHistoryPage({required this.routesFuture, required this.onRefresh});
+  const _RouteHistoryPage({
+    required this.localeCode,
+    required this.routesFuture,
+    required this.onRefresh,
+  });
 
+  final String localeCode;
   final Future<List<RecordedRoute>?> routesFuture;
   final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(localeCode);
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: FutureBuilder<List<RecordedRoute>?>(
@@ -334,9 +355,9 @@ class _RouteHistoryPage extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
             children: [
-              const _SectionHeader(
-                title: 'All previous routes',
-                subtitle: 'Every route you have traveled before, pulled from the backend.',
+              _SectionHeader(
+                title: strings.previousRoutes,
+                subtitle: strings.previousRoutesSubtitle,
               ),
               const SizedBox(height: 12),
               if (snapshot.connectionState == ConnectionState.waiting)
@@ -346,21 +367,21 @@ class _RouteHistoryPage extends StatelessWidget {
                 )
               else if (snapshot.hasError)
                 _EmptyState(
-                  title: 'Could not load routes',
+                  title: strings.couldNotLoadRoutes,
                   subtitle: '${snapshot.error}',
                   icon: Icons.error_outline,
                 )
               else if (routes == null || routes.isEmpty)
-                const _EmptyState(
-                  title: 'No saved routes yet',
-                  subtitle: 'When you finish a trip, it will appear here automatically.',
+                _EmptyState(
+                  title: strings.noSavedRoutes,
+                  subtitle: strings.noSavedRoutesSubtitle,
                   icon: Icons.route_outlined,
                 )
               else
                 ...routes.map(
                   (route) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _SavedRouteCard(route: route),
+                    child: _SavedRouteCard(localeCode: localeCode, route: route),
                   ),
                 ),
             ],
@@ -372,12 +393,14 @@ class _RouteHistoryPage extends StatelessWidget {
 }
 
 class _SavedRouteCard extends StatelessWidget {
-  const _SavedRouteCard({required this.route});
+  const _SavedRouteCard({required this.localeCode, required this.route});
 
+  final String localeCode;
   final RecordedRoute route;
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(localeCode);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -401,12 +424,12 @@ class _SavedRouteCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Distance: ${route.distanceStr} · Duration: ${route.durationStr}',
+            '${strings.distance}: ${route.distanceStr} - ${strings.duration}: ${route.durationStr}',
             style: TextStyle(color: Colors.black.withValues(alpha: 0.65)),
           ),
           const SizedBox(height: 6),
           Text(
-            'Saved: ${route.startTime.toLocal()} - ${route.endTime.toLocal()}',
+            '${strings.saved}: ${route.startTime.toLocal()} - ${route.endTime.toLocal()}',
             style: TextStyle(color: Colors.black.withValues(alpha: 0.55), fontSize: 12),
           ),
           if (route.notes != null && route.notes!.trim().isNotEmpty) ...[
@@ -420,7 +443,7 @@ class _SavedRouteCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(route.rating?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.w700)),
               const Spacer(),
-              Text('${route.coordinates.length} points'),
+              Text(strings.points(route.coordinates.length)),
             ],
           ),
         ],
