@@ -1,6 +1,6 @@
 # SafeRoute
 
-SafeRoute is a Flutter app for mapping transport poverty and recommending safer routes for women commuters.
+SafeRoute is a Flutter app for mapping transport poverty and recommending safer routes for women commuters in Dar es salaam.
 
 ## Features
 
