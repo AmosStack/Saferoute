@@ -40,6 +40,16 @@ def _json_ready(value):
     return value
 
 
+def _password_matches(raw_password: str, stored_hash: str) -> bool:
+    try:
+        if check_password(raw_password, stored_hash):
+            return True
+    except Exception:
+        pass
+
+    return raw_password == stored_hash
+
+
 def _dashboard_auth(view_func):
     @wraps(view_func)
     def wrapper(request: HttpRequest, *args, **kwargs):
@@ -55,11 +65,7 @@ def _dashboard_auth(view_func):
                 cursor.execute("SELECT password_hash FROM saferoute.admins WHERE username = %s LIMIT 1", [u])
                 row = cursor.fetchone()
                 if row:
-                    stored_hash = row[0]
-                    try:
-                        return check_password(p, stored_hash)
-                    except Exception:
-                        return False
+                    return _password_matches(p, row[0])
 
             # Fall back to env var
             return u == username_env and p == password_env
@@ -121,10 +127,7 @@ def dashboard_login(request: HttpRequest):
                     cursor.execute("SELECT password_hash FROM saferoute.admins WHERE username = %s LIMIT 1", [u])
                     row = cursor.fetchone()
                     if row:
-                        try:
-                            return check_password(p, row[0])
-                        except Exception:
-                            return False
+                        return _password_matches(p, row[0])
                 # fallback to env
                 return u == os.environ.get("DASHBOARD_USERNAME", "admin") and p == os.environ.get("DASHBOARD_PASSWORD", "admin123")
 
@@ -285,7 +288,7 @@ def _complaint_map_rows(limit: int = 100):
                             COUNT(*) AS complaint_count,
                             COUNT(*) FILTER (WHERE complaint_type = 'safety_report') AS safety_reports,
                             COUNT(*) FILTER (WHERE complaint_type = 'incident') AS incidents,
-                            MAX(created_at) AS latest_created_at,
+                            MAX(cp.created_at) AS latest_created_at,
                             MAX(description) AS sample_description,
                             MAX(severity) AS max_severity
                         FROM complaint_points cp
