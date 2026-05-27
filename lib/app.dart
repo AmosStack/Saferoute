@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'auth/auth_models.dart';
 import 'screens/auth_screen.dart';
@@ -26,18 +27,27 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
   }
 
   Future<void> _bootstrap() async {
-    final result = await Future.wait<dynamic>([
-      Future<void>.delayed(const Duration(seconds: 2)),
-      AuthService.instance.getStoredSession(),
-      UserSettingsService.loadLocaleCode(),
-    ]);
+    try {
+      final result = await Future.wait<dynamic>([
+        Future<void>.delayed(const Duration(seconds: 2)),
+        AuthService.instance.getStoredSession(),
+        UserSettingsService.loadLocaleCode(),
+      ]);
 
-    if (!mounted) return;
-    setState(() {
-      _session = result[2] as AuthSession?;
-      _localeCode = result[3] as String? ?? 'en';
-      _isCheckingSession = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _session = result[1] as AuthSession?;
+        _localeCode = result[2] as String? ?? 'en';
+        _isCheckingSession = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _session = null;
+        _localeCode = 'en';
+        _isCheckingSession = false;
+      });
+    }
   }
 
   Future<void> _onLocaleChanged(String localeCode) async {
@@ -85,11 +95,16 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
         scaffoldBackgroundColor: const Color(0xFFF7F2EA),
       ),
       locale: Locale(_localeCode),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('en'), Locale('sw')],
       home: _isCheckingSession
           ? const SplashScreen()
           : (_session == null
-                ? AuthScreen(onAuthenticated: _onAuthenticated)
+                ? AuthScreen(
+                    localeCode: _localeCode,
+                    onLocaleChanged: _onLocaleChanged,
+                    onAuthenticated: _onAuthenticated,
+                  )
                 : HomeScreen(
                     user: _session!.user,
                     onSignOut: _onSignOut,
