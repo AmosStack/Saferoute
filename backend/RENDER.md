@@ -32,6 +32,7 @@ DJANGO_ALLOWED_HOSTS=<your-service-name>.onrender.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://<your-service-name>.onrender.com
 DASHBOARD_USERNAME=admin
 DASHBOARD_PASSWORD=<secure admin password>
+GOOGLE_OAUTH_CLIENT_ID=105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com
 ```
 
 If you use a custom domain, put that domain in `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS`.
