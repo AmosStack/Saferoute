@@ -1,0 +1,26 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ mode }} User - SafeRoute Admin{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>{{ mode }} User</h1>
+    <div class="subtle">Passwords are stored using Django password hashing.</div>
+  </div>
+  <a class="button" href="/dashboard/users">Back to users</a>
+</div>
+
+<section class="card">
+  <form method="post" class="form-grid">
+    <label>Name
+      <input name="name" value="{{ user.name }}" required>
+    </label>
+    <label>Email
+      <input name="email" type="email" value="{{ user.email }}" required>
+    </label>
+    <label>Password
+      <input name="password" type="password" {% if mode == "Create" %}required{% endif %} placeholder="{% if mode == 'Edit' %}Leave blank to keep current{% else %}Minimum 8 characters{% endif %}">
+    </label>
+    <button class="primary" type="submit">{{ mode }} user</button>
+  </form>
+</section>
+{% endblock %}
