@@ -41,6 +41,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   int _arrivalHitCount = 0;
   int _selectedRating = 0;
   String? _currentLocationName;
+  ll.LatLng? _currentReportedPoint;
+  String? _currentReportedLocationName;
   ll.LatLng? _lastLocationNameLookupPoint;
   ll.LatLng? _lastFollowedPoint;
   final TextEditingController _notesController = TextEditingController();
@@ -107,6 +109,23 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     }
   }
 
+  Future<int?> _createLocationRecord(
+    ll.LatLng point, {
+    String? preferredName,
+  }) async {
+    final resolvedName = (preferredName ?? await _reverseGeocode(point) ?? 'Reported location').trim();
+    try {
+      return await BackendService.createLocation(
+        name: resolvedName.isEmpty ? 'Reported location' : resolvedName,
+        latitude: point.latitude,
+        longitude: point.longitude,
+      );
+    } catch (e) {
+      debugPrint('Failed to create location record: $e');
+      return null;
+    }
+  }
+
   Future<void> _startRecording() async {
     await _recorderService.startRecording(widget.startPoint);
     if (!mounted) return;
@@ -116,7 +135,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     await _moveCamera(widget.startPoint, zoom: 16.0);
   }
 
-  Future<void> _saveRoute() async {
+  Future<void> _saveRoute({ll.LatLng? locationPoint, String? locationName}) async {
     final route = await _recorderService.stopRecording(
       widget.destination,
       startLocationName: widget.startLocationName,
@@ -135,6 +154,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       if (saved) {
         try {
           final transportModeId = await BackendService.createTransportMode(widget.transportMode);
+          int? locationId;
+          final reportPoint = locationPoint ?? _currentReportedPoint ?? _recorderService.currentLatLng ?? widget.destination;
+          final reportName = locationName ?? _currentReportedLocationName ?? _currentLocationName ?? widget.endLocationName;
           await BackendService.createTravelLog(
             userId: widget.userId!,
             recordedRouteId: route.id,
@@ -152,9 +174,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                 notes.contains('danger') ||
                 notes.contains('problem') ||
                 _selectedRating <= 2) {
+              locationId ??= await _createLocationRecord(reportPoint, preferredName: reportName);
               await BackendService.createSafetyReport(
                 userId: widget.userId!,
                 routeId: route.id,
+                locationId: locationId,
                 description: _notesController.text,
                 severity: 5 - _selectedRating,
               );
@@ -184,6 +208,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     if (!mounted) return;
     setState(() {
       _currentLocationName = currentName;
+      _currentReportedPoint = currentPoint;
+      _currentReportedLocationName = currentName;
     });
 
     await showModalBottomSheet<void>(
@@ -275,7 +301,10 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                           child: FilledButton(
                             onPressed: () async {
                               Navigator.of(dialogContext).pop();
-                              await _saveRoute();
+                              await _saveRoute(
+                                locationPoint: currentPoint,
+                                locationName: currentName,
+                              );
                             },
                             child: const Text('Save route'),
                           ),
@@ -390,12 +419,17 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
                             Navigator.of(sheetContext).pop();
                             try {
+                              final locationId = await _createLocationRecord(
+                                currentPoint,
+                                preferredName: locationName,
+                              );
                               await BackendService.createIncident(
                                 incidentType: _incidentType,
                                 description: [
                                   'Location: ${locationName ?? '${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'}',
                                   currentDescription,
                                 ].join('\n'),
+                                locationId: locationId,
                                 occurredAt: DateTime.now(),
                               );
                               if (mounted) {
