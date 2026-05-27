@@ -17,6 +17,7 @@ This is the Django API for SafeRoute. It keeps the same HTTP endpoints and JSON 
 - `DJANGO_SECRET_KEY` optional for local development
 - `DJANGO_DEBUG` defaults to `true`
 - `DJANGO_ALLOWED_HOSTS` defaults to `*`
+- `GOOGLE_OAUTH_CLIENT_ID` is used to verify Google sign-in tokens
 
 ## Run
 
