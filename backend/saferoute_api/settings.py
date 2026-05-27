@@ -10,6 +10,10 @@ SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "dev-only-saferoute-secret-key-change-before-production",
 )
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get(
+    "GOOGLE_OAUTH_CLIENT_ID",
+    "105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com",
+)
 DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 ALLOWED_HOSTS = [
     host.strip()
