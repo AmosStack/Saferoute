@@ -108,8 +108,6 @@ class BackendService {
     }
   }
 
-  static String get _baseUrl => _baseUrlCandidates.first;
-
   static Future<http.Response> _postWithFallback(
     String path,
     Map<String, dynamic> body,
@@ -206,6 +204,19 @@ class BackendService {
 
     if (result['error'] != null) {
       print('Login failed: ${result['error']}');
+    }
+
+    return result;
+  }
+
+  /// Login or register a user with a Google ID token.
+  static Future<Map<String, dynamic>?> loginWithGoogle({
+    required String idToken,
+  }) async {
+    final result = await _postJson('/auth/google', {'idToken': idToken});
+
+    if (result['error'] != null) {
+      print('Google login failed: ${result['error']}');
     }
 
     return result;
