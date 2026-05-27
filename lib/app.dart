@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'auth/auth_models.dart';
 import 'screens/auth_screen.dart';
-import 'services/backend_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
+import 'services/user_settings_service.dart';
 
 class SafeRouteApp extends StatefulWidget {
   const SafeRouteApp({super.key});
@@ -17,6 +17,7 @@ class SafeRouteApp extends StatefulWidget {
 class _SafeRouteAppState extends State<SafeRouteApp> {
   AuthSession? _session;
   bool _isCheckingSession = true;
+  String _localeCode = 'en';
 
   @override
   void initState() {
@@ -26,15 +27,24 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
 
   Future<void> _bootstrap() async {
     final result = await Future.wait<dynamic>([
-      BackendService.initialize(),
       Future<void>.delayed(const Duration(seconds: 2)),
       AuthService.instance.getStoredSession(),
+      UserSettingsService.loadLocaleCode(),
     ]);
 
     if (!mounted) return;
     setState(() {
       _session = result[2] as AuthSession?;
+      _localeCode = result[3] as String? ?? 'en';
       _isCheckingSession = false;
+    });
+  }
+
+  Future<void> _onLocaleChanged(String localeCode) async {
+    await UserSettingsService.setLocaleCode(localeCode);
+    if (!mounted) return;
+    setState(() {
+      _localeCode = localeCode;
     });
   }
 
@@ -74,14 +84,18 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7F2EA),
       ),
+      locale: Locale(_localeCode),
+      supportedLocales: const [Locale('en'), Locale('sw')],
       home: _isCheckingSession
           ? const SplashScreen()
           : (_session == null
-              ? AuthScreen(onAuthenticated: _onAuthenticated)
-              : HomeScreen(
-                  user: _session!.user,
-                  onSignOut: _onSignOut,
-                )),
+                ? AuthScreen(onAuthenticated: _onAuthenticated)
+                : HomeScreen(
+                    user: _session!.user,
+                    onSignOut: _onSignOut,
+                    localeCode: _localeCode,
+                    onLocaleChanged: _onLocaleChanged,
+                  )),
     );
   }
 }
