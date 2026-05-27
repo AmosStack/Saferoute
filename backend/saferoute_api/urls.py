@@ -17,6 +17,7 @@ urlpatterns = [
     path("health", views.health),
     path("auth/register", views.register),
     path("auth/login", views.login),
+    path("auth/google", views.google_login),
     path("routes/record", views.record_route),
     path("routes/user/<int:user_id>", views.get_user_routes),
     path("transport-modes", views.create_transport_mode),
