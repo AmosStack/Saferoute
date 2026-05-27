@@ -1,0 +1,42 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Route Detail - SafeRoute Admin{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Route Detail</h1>
+    <div class="subtle">{{ route.user_name }} - {{ route.email }}</div>
+  </div>
+  <a class="button" href="/dashboard/routes">Back to routes</a>
+</div>
+
+<section class="card">
+  <div class="detail-list">
+    <div><span>Start</span><strong>{{ route.start_location_name }}</strong></div>
+    <div><span>End</span><strong>{{ route.end_location_name }}</strong></div>
+    <div><span>Transport mode</span><strong>{{ route.transport_mode }}</strong></div>
+    <div><span>Distance</span><strong>{{ route.distance_meters|floatformat:0 }} m</strong></div>
+    <div><span>Duration</span><strong>{{ route.duration_seconds }} seconds</strong></div>
+    <div><span>Rating</span><strong>{{ route.rating|default:"-" }}</strong></div>
+    <div><span>Started</span><strong>{{ route.started_at }}</strong></div>
+    <div><span>Ended</span><strong>{{ route.ended_at }}</strong></div>
+  </div>
+  <p><strong>Notes:</strong> {{ route.notes|default:"No notes recorded." }}</p>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <div class="section-title">
+    <h2>Coordinate sample</h2>
+    <span class="subtle">{{ point_count }} total points</span>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Latitude</th><th>Longitude</th></tr></thead>
+    <tbody>
+      {% for point in coordinates %}
+      <tr><td>{{ forloop.counter }}</td><td>{{ point.lat }}</td><td>{{ point.lng }}</td></tr>
+      {% empty %}
+      <tr><td colspan="3">No coordinate points stored.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
