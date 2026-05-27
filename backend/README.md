@@ -72,6 +72,8 @@ The dashboard supports:
 - User CRUD: create, edit, delete, and search users.
 - Route inspection: view recorded routes, transport mode, distance, duration, ratings, notes, and coordinate samples.
 - Analytics: total users, routes, distance, travel time, route volume by mode/day, safety reports, and top travelers.
+- Map view: visualize recent routes and complaint hot spots on an interactive map.
+- Complaint review: inspect safety reports and incident clusters tied to specific locations.
 
 ## API
 
