@@ -15,6 +15,14 @@ def ensure_schema() -> None:
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS saferoute.admins (
+          id SERIAL PRIMARY KEY,
+          username VARCHAR(120) NOT NULL UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id INT NOT NULL REFERENCES saferoute.users(id) ON DELETE CASCADE,
