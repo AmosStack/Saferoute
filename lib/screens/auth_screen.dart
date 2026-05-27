@@ -59,16 +59,15 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.onAuthenticated(session);
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
       }
-      setState(() {
-        _isSubmitting = false;
-      });
     }
   }
 
@@ -82,9 +81,9 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.onAuthenticated(session);
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -144,7 +143,9 @@ class _AuthScreenState extends State<AuthScreen> {
                               ],
                             ),
                             Text(
-                              _isRegisterMode ? 'Create your account' : 'Welcome back',
+                              _isRegisterMode
+                                  ? 'Create your account'
+                                  : 'Welcome back',
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
@@ -202,7 +203,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                   prefixIcon: Icon(Icons.phone_outlined),
                                 ),
                                 validator: (value) {
-                                  if (value == null || value.trim().length < 7) {
+                                  if (value == null ||
+                                      value.trim().length < 7) {
                                     return 'Enter a valid phone number';
                                   }
                                   return null;
@@ -227,7 +229,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             const SizedBox(height: 18),
                             FilledButton(
                               onPressed: _isSubmitting ? null : _submit,
-                              child: Text(_isRegisterMode ? 'Register' : 'Log in'),
+                              child: Text(
+                                _isRegisterMode ? 'Register' : 'Log in',
+                              ),
                             ),
                             const SizedBox(height: 10),
                             TextButton(
@@ -249,21 +253,30 @@ class _AuthScreenState extends State<AuthScreen> {
                               children: [
                                 const Expanded(child: Divider()),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                                  child: Text('or', style: TextStyle(color: scheme.tertiary)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  child: Text(
+                                    'or',
+                                    style: TextStyle(color: scheme.tertiary),
+                                  ),
                                 ),
                                 const Expanded(child: Divider()),
                               ],
                             ),
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
-                              onPressed: _isSubmitting ? null : _continueWithGoogle,
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : _continueWithGoogle,
                               icon: const Icon(Icons.account_circle_outlined),
                               label: const Text('Continue with Google'),
                             ),
                             const SizedBox(height: 10),
                             OutlinedButton.icon(
-                              onPressed: _isSubmitting ? null : _continueWithFacebook,
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : _continueWithFacebook,
                               icon: const Icon(Icons.public_outlined),
                               label: const Text('Continue with Facebook'),
                             ),
@@ -300,10 +313,7 @@ class _AuthBackdrop extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            scheme.surface,
-            scheme.surfaceContainerHighest,
-          ],
+          colors: [scheme.surface, scheme.surfaceContainerHighest],
         ),
       ),
     );
