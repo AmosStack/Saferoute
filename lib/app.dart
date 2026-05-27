@@ -33,7 +33,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
 
     if (!mounted) return;
     setState(() {
-      _session = result[1] as AuthSession?;
+      _session = result[2] as AuthSession?;
       _isCheckingSession = false;
     });
   }
