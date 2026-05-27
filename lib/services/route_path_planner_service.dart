@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 /// Represents a segment of a journey with a specific transport mode
@@ -77,7 +78,7 @@ class RoutePathPlannerService {
         return await _calculateRoute(start, destination, 'driving');
       }
     } catch (e) {
-      print('Error calculating path: $e');
+      debugPrint('Error calculating path: $e');
       return null;
     }
   }
@@ -123,7 +124,7 @@ class RoutePathPlannerService {
         ),
       ];
     } catch (e) {
-      print('Error calculating route: $e');
+      debugPrint('Error calculating route: $e');
       return null;
     }
   }
@@ -142,7 +143,7 @@ class RoutePathPlannerService {
       final nearestDestStop = await _findNearestBusStop(destination);
 
       if (nearestStartStop == null || nearestDestStop == null) {
-        print('Could not find bus stops, falling back to driving');
+        debugPrint('Could not find bus stops, falling back to driving');
         return await _calculateRoute(start, destination, 'driving');
       }
 
@@ -183,13 +184,16 @@ class RoutePathPlannerService {
 
       return segments.isNotEmpty ? segments : null;
     } catch (e) {
-      print('Error calculating bus path: $e');
+      debugPrint('Error calculating bus path: $e');
       return null;
     }
   }
 
   /// Find the nearest bus stop to a given location
-  static Future<BusStop?> _findNearestBusStop(LatLng location) async {
+  static Future<BusStop?> _findNearestBusStop(
+    LatLng location, {
+    int radiusMeters = 500,
+  }) async {
     try {
       // Search for bus stops near the location using Nominatim
       final uri = Uri.parse(_nominatimUrl).replace(queryParameters: {
@@ -197,7 +201,7 @@ class RoutePathPlannerService {
         'q': 'amenity=bus_stop',
         'lat': location.latitude.toString(),
         'lon': location.longitude.toString(),
-        'radius': '500', // 500m search radius
+        'radius': radiusMeters.toString(),
         'limit': '1',
       });
 
@@ -213,9 +217,18 @@ class RoutePathPlannerService {
 
       return BusStop.fromOSM(data.first as Map<String, dynamic>);
     } catch (e) {
-      print('Error finding bus stop: $e');
+      debugPrint('Error finding bus stop: $e');
       return null;
     }
+  }
+
+  /// True when at least one bus stop can be found near the given location.
+  static Future<bool> hasNearbyBusStop(
+    LatLng location, {
+    int radiusMeters = 700,
+  }) async {
+    final stop = await _findNearestBusStop(location, radiusMeters: radiusMeters);
+    return stop != null;
   }
 
   /// Convert OSRM profile to transport mode
