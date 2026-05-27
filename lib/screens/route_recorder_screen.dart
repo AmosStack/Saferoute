@@ -1,9 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'dart:convert';
+import 'dart:math' as math;
 
-import '../services/route_recorder_service.dart';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' as ll;
+
 import '../services/backend_service.dart';
+import '../services/route_recorder_service.dart';
 
 class RouteRecorderScreen extends StatefulWidget {
   const RouteRecorderScreen({
@@ -16,8 +20,8 @@ class RouteRecorderScreen extends StatefulWidget {
     this.userId,
   });
 
-  final LatLng startPoint;
-  final LatLng destination;
+  final ll.LatLng startPoint;
+  final ll.LatLng destination;
   final String startLocationName;
   final String endLocationName;
   final String transportMode;
@@ -29,130 +33,87 @@ class RouteRecorderScreen extends StatefulWidget {
 
 class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   late final RouteRecorderService _recorderService;
-  late final MapController _mapController;
+  gmaps.GoogleMapController? _mapController;
+  bool _showUserLocation = false;
   bool _hasArrivedNotified = false;
+  bool _isArrivalDialogOpen = false;
+  bool _isIncidentDialogOpen = false;
+  int _arrivalHitCount = 0;
   int _selectedRating = 0;
+  String? _currentLocationName;
+  ll.LatLng? _lastLocationNameLookupPoint;
+  ll.LatLng? _lastFollowedPoint;
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _incidentDescriptionController = TextEditingController();
+  String _incidentType = 'Unsafe road condition';
 
-  @override
-  void initState() {
-    super.initState();
-    _recorderService = RouteRecorderService();
-    _mapController = MapController();
-    _recorderService.addListener(_onLocationUpdate);
-    _startRecording();
+  static const List<String> _incidentTypes = <String>[
+    'Unsafe road condition',
+    'Harassment',
+    'Poor lighting',
+    'Traffic hazard',
+    'Vehicle issue',
+    'Other',
+  ];
+
+  gmaps.LatLng _toGoogleLatLng(ll.LatLng point) {
+    return gmaps.LatLng(point.latitude, point.longitude);
+  }
+
+  double _distanceMeters(ll.LatLng a, ll.LatLng b) {
+    const earthRadius = 6371000.0;
+    final dLat = (b.latitude - a.latitude) * (math.pi / 180.0);
+    final dLon = (b.longitude - a.longitude) * (math.pi / 180.0);
+    final lat1 = a.latitude * (math.pi / 180.0);
+    final lat2 = b.latitude * (math.pi / 180.0);
+    final sinLat = math.sin(dLat / 2);
+    final sinLon = math.sin(dLon / 2);
+    final h = sinLat * sinLat + (sinLon * sinLon) * (math.cos(lat1) * math.cos(lat2));
+    return 2 * earthRadius * math.asin(math.sqrt(h));
+  }
+
+  Future<void> _moveCamera(ll.LatLng target, {double zoom = 16.0}) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    await controller.animateCamera(
+      gmaps.CameraUpdate.newCameraPosition(
+        gmaps.CameraPosition(
+          target: _toGoogleLatLng(target),
+          zoom: zoom,
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _reverseGeocode(ll.LatLng point) async {
+    final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse').replace(
+      queryParameters: {
+        'format': 'json',
+        'lat': point.latitude.toString(),
+        'lon': point.longitude.toString(),
+      },
+    );
+
+    try {
+      final resp = await http.get(uri, headers: {'User-Agent': 'SafeRouteDev/0.1'});
+      if (resp.statusCode != 200) return null;
+      final data = json.decode(resp.body) as Map<String, dynamic>;
+      final displayName = data['display_name']?.toString();
+      if (displayName == null || displayName.trim().isEmpty) return null;
+      return displayName.split(',').first.trim();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _startRecording() async {
     await _recorderService.startRecording(widget.startPoint);
-    _mapController.move(widget.startPoint, 16.0);
-  }
-
-  void _onLocationUpdate() {
-    setState(() {});
-
-    // Check if user reached destination
-    if (!_hasArrivedNotified && _recorderService.isNearDestination(widget.destination)) {
-      _hasArrivedNotified = true;
-      _showArrivalDialog();
-    }
-  }
-
-  void _showArrivalDialog() {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('${widget.endLocationName} reached'),
-        content: Text(
-          'Distance: ${_recorderService.totalDistance.toStringAsFixed(0)} m\n'
-          'Duration: ${_formatDuration(_recorderService.totalDistance)}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: _stopRecording,
-            child: const Text('Save Route'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDuration(double distance) {
-    // Rough estimate: 1.4 m/s average walking speed
-    final seconds = (distance / 1.4).toInt();
-    final mins = seconds ~/ 60;
-    final secs = seconds % 60;
-    if (mins == 0) return '${secs}s';
-    return '${mins}m ${secs}s';
-  }
-
-  Future<void> _stopRecording() async {
-    Navigator.of(context).pop(); // Close arrival dialog
-    await _recorderService.dispose();
-
-    if (mounted) {
-      _showRatingDialog();
-    }
-  }
-
-  void _showRatingDialog() {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, dialogSetState) => AlertDialog(
-          title: const Text('Rate This Route'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('How safe was this journey?'),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  5,
-                  (i) => IconButton(
-                    icon: Icon(
-                      Icons.star,
-                      color: i < _selectedRating ? Colors.amber : Colors.grey,
-                      size: 32,
-                    ),
-                    onPressed: () {
-                      dialogSetState(() {
-                        _selectedRating = i + 1;
-                      });
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _notesController,
-                decoration: const InputDecoration(
-                  hintText: 'Any safety notes or observations?',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                await _saveRoute();
-              },
-              child: const Text('Save & Finish'),
-            ),
-          ],
-        ),
-      ),
-    );
+    if (!mounted) return;
+    setState(() {
+      _showUserLocation = true;
+    });
+    await _moveCamera(widget.startPoint, zoom: 16.0);
   }
 
   Future<void> _saveRoute() async {
@@ -165,23 +126,15 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
     );
 
-    // Save to backend if userId is available
     if (widget.userId != null) {
-      // Save the recorded route
       final saved = await BackendService.saveRoute(
         userId: widget.userId!,
         route: route,
       );
 
       if (saved) {
-        // Also save travel log
         try {
-          // Get or create transport mode
-          final transportModeId = await BackendService.createTransportMode(
-            widget.transportMode,
-          );
-
-          // Create travel log
+          final transportModeId = await BackendService.createTransportMode(widget.transportMode);
           await BackendService.createTravelLog(
             userId: widget.userId!,
             recordedRouteId: route.id,
@@ -193,24 +146,22 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
             notes: _notesController.text.isNotEmpty ? _notesController.text : null,
           );
 
-          // If there are safety notes, create a safety report
           if (_notesController.text.isNotEmpty && _selectedRating != 0) {
-            // Only create safety report if safety concerns are mentioned
             final notes = _notesController.text.toLowerCase();
-            if (notes.contains('unsafe') || 
-                notes.contains('danger') || 
+            if (notes.contains('unsafe') ||
+                notes.contains('danger') ||
                 notes.contains('problem') ||
                 _selectedRating <= 2) {
               await BackendService.createSafetyReport(
                 userId: widget.userId!,
                 routeId: route.id,
                 description: _notesController.text,
-                severity: 5 - _selectedRating, // Higher severity for lower ratings
+                severity: 5 - _selectedRating,
               );
             }
           }
         } catch (e) {
-          print('Error saving travel log/safety report: $e');
+          debugPrint('Error saving travel log/safety report: $e');
         }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -224,17 +175,318 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     }
   }
 
+  Future<void> _showArrivalForm() async {
+    if (_isArrivalDialogOpen || !mounted) return;
+    _isArrivalDialogOpen = true;
+
+    final currentPoint = _recorderService.currentLatLng ?? widget.destination;
+    final currentName = await _reverseGeocode(currentPoint);
+    if (!mounted) return;
+    setState(() {
+      _currentLocationName = currentName;
+    });
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, dialogSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 8,
+                  bottom: MediaQuery.of(dialogContext).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Arrival detected',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${widget.endLocationName} reached',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      _currentLocationName == null
+                          ? 'Current location: ${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'
+                          : 'Current location: $_currentLocationName',
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'How safe was the route? Describe any unsafe areas or route issues.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        5,
+                        (i) => IconButton(
+                          icon: Icon(
+                            Icons.star,
+                            color: i < _selectedRating ? Colors.amber : Colors.grey,
+                            size: 32,
+                          ),
+                          onPressed: () {
+                            dialogSetState(() {
+                              _selectedRating = i + 1;
+                            });
+                            setState(() {
+                              _selectedRating = i + 1;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    TextField(
+                      controller: _notesController,
+                      decoration: const InputDecoration(
+                        hintText: 'Describe safety concerns, route quality, or observations',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop();
+                              _isArrivalDialogOpen = false;
+                              _arrivalHitCount = 0;
+                              _hasArrivedNotified = false;
+                            },
+                            child: const Text('Continue tracking'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () async {
+                              Navigator.of(dialogContext).pop();
+                              await _saveRoute();
+                            },
+                            child: const Text('Save route'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    _isArrivalDialogOpen = false;
+  }
+
+  Future<void> _showIncidentDialog() async {
+    if (_isIncidentDialogOpen || !mounted) return;
+    _isIncidentDialogOpen = true;
+
+    final currentPoint = _recorderService.currentLatLng ?? widget.startPoint;
+    final locationName = await _reverseGeocode(currentPoint);
+    if (!mounted) return;
+
+    final descriptionController = _incidentDescriptionController;
+    descriptionController.clear();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, sheetSetState) {
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 8,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Report incident',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    locationName == null
+                        ? 'Current position: ${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'
+                        : 'Current location: $locationName',
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _incidentType,
+                    items: _incidentTypes
+                        .map(
+                          (type) => DropdownMenuItem<String>(
+                            value: type,
+                            child: Text(type),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      sheetSetState(() {
+                        _incidentType = value;
+                      });
+                      setState(() {
+                        _incidentType = value;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Incident type',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      hintText: 'Describe what happened and why the location felt unsafe',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 4,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () async {
+                            final currentDescription = descriptionController.text.trim();
+                            if (currentDescription.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please describe the incident')),
+                              );
+                              return;
+                            }
+
+                            Navigator.of(sheetContext).pop();
+                            try {
+                              await BackendService.createIncident(
+                                incidentType: _incidentType,
+                                description: [
+                                  'Location: ${locationName ?? '${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'}',
+                                  currentDescription,
+                                ].join('\n'),
+                                occurredAt: DateTime.now(),
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Incident report sent')),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to send incident report: $e')),
+                                );
+                              }
+                            }
+                          },
+                          child: const Text('Submit'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    _isIncidentDialogOpen = false;
+  }
+
+  void _onLocationUpdate() {
+    if (!mounted) return;
+
+    final currentPoint = _recorderService.currentLatLng;
+    if (currentPoint != null && !_hasArrivedNotified) {
+      if (_lastFollowedPoint == null || _distanceMeters(_lastFollowedPoint!, currentPoint) > 8) {
+        _lastFollowedPoint = currentPoint;
+        _moveCamera(currentPoint, zoom: 17.0);
+      }
+
+      if (_lastLocationNameLookupPoint == null || _distanceMeters(_lastLocationNameLookupPoint!, currentPoint) > 60) {
+        _lastLocationNameLookupPoint = currentPoint;
+        _reverseGeocode(currentPoint).then((name) {
+          if (!mounted || name == null || name.isEmpty) return;
+          setState(() {
+            _currentLocationName = name;
+          });
+        });
+      }
+    }
+
+    if (currentPoint != null) {
+      final nearDestination = _recorderService.isNearDestination(widget.destination, thresholdMeters: 45);
+      if (nearDestination) {
+        _arrivalHitCount += 1;
+      } else {
+        _arrivalHitCount = 0;
+      }
+
+      if (!_hasArrivedNotified && _arrivalHitCount >= 2) {
+        _hasArrivedNotified = true;
+        _showArrivalForm();
+      }
+    }
+
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _recorderService = RouteRecorderService();
+    _recorderService.addListener(_onLocationUpdate);
+    _startRecording();
+  }
+
   @override
   void dispose() {
     _recorderService.removeListener(_onLocationUpdate);
     _recorderService.dispose();
     _notesController.dispose();
+    _incidentDescriptionController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final coords = _recorderService.coordinates;
+    final currentPoint = _recorderService.currentLatLng;
 
     return Scaffold(
       appBar: AppBar(
@@ -242,50 +494,47 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       ),
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: widget.startPoint,
-              initialZoom: 16.0,
+          gmaps.GoogleMap(
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _moveCamera(widget.startPoint, zoom: 16.0);
+            },
+            initialCameraPosition: gmaps.CameraPosition(
+              target: _toGoogleLatLng(widget.startPoint),
+              zoom: 16.0,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                tileProvider: NetworkTileProvider(
-                  headers: {'User-Agent': 'SafeRoute/0.1'},
-                ),
+            myLocationEnabled: _showUserLocation,
+            myLocationButtonEnabled: _showUserLocation,
+            zoomControlsEnabled: false,
+            mapToolbarEnabled: false,
+            markers: {
+              gmaps.Marker(
+                markerId: const gmaps.MarkerId('start'),
+                position: _toGoogleLatLng(widget.startPoint),
+                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueGreen),
               ),
-              // Draw recorded polyline
+              gmaps.Marker(
+                markerId: const gmaps.MarkerId('destination'),
+                position: _toGoogleLatLng(widget.destination),
+                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueRed),
+              ),
+              if (currentPoint != null)
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('live_location'),
+                  position: _toGoogleLatLng(currentPoint),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueAzure),
+                ),
+            },
+            polylines: {
               if (coords.length > 1)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: coords,
-                      strokeWidth: 4,
-                      color: Colors.blueAccent,
-                    ),
-                  ],
+                gmaps.Polyline(
+                  polylineId: const gmaps.PolylineId('recorded_route'),
+                  points: coords.map(_toGoogleLatLng).toList(),
+                  width: 4,
+                  color: Colors.blueAccent,
                 ),
-              // Start & destination markers
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: widget.startPoint,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(Icons.location_on, color: Colors.green, size: 36),
-                  ),
-                  Marker(
-                    point: widget.destination,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(Icons.flag, color: Colors.red, size: 34),
-                  ),
-                ],
-              ),
-            ],
+            },
           ),
-          // Stats overlay
           Positioned(
             top: 12,
             left: 12,
@@ -306,6 +555,13 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Mode: ${widget.transportMode}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currentLocationName == null
+                          ? 'Live location tracking active'
+                          : 'Live: $_currentLocationName',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
@@ -341,20 +597,17 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               ),
             ),
           ),
-          // Arrived button
-          Positioned(
-            bottom: 24,
-            left: 12,
-            right: 12,
-            child: FilledButton.icon(
-              onPressed: _stopRecording,
-              icon: const Icon(Icons.flag),
-              label: const Text('Arrived'),
-              style: FilledButton.styleFrom(
+          if (!_hasArrivedNotified)
+            Positioned(
+              bottom: 24,
+              right: 12,
+              child: FloatingActionButton.extended(
+                onPressed: _showIncidentDialog,
                 backgroundColor: Colors.red,
+                icon: const Icon(Icons.report_problem),
+                label: const Text('Report issue'),
               ),
             ),
-          ),
         ],
       ),
     );
