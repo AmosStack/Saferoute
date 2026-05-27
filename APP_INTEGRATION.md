@@ -444,7 +444,7 @@ curl -X POST http://localhost:3000/routes/record \
 
 - [ ] Update `_baseUrl` in BackendService to production API
 - [ ] Ensure PostgreSQL is running with correct credentials
-- [ ] Run backend server: `dart run bin/server.dart`
+- [ ] Run backend server: `python manage.py runserver 0.0.0.0:3000`
 - [ ] Initialize database schema: `psql -f schema.sql`
 - [ ] Test registration/login flow
 - [ ] Test route recording and saving
