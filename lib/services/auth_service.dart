@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_models.dart';
@@ -11,6 +13,16 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   static const String _sessionKey = 'auth_session';
+  static const String _googleOAuthClientId = String.fromEnvironment(
+    'GOOGLE_OAUTH_CLIENT_ID',
+    defaultValue: '105928817756-d4pbc059dccu5o7jq63b6ep9mt4shdu9.apps.googleusercontent.com',
+  );
+
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    clientId: kIsWeb ? _googleOAuthClientId : null,
+    serverClientId: _googleOAuthClientId,
+  );
 
   Future<AuthSession?> getStoredSession() async {
     final prefs = await SharedPreferences.getInstance();
@@ -129,19 +141,53 @@ class AuthService {
   }
 
   Future<AuthSession> signInWithGoogle() async {
-    final session = AuthSession(
-      token: 'google-token-${DateTime.now().millisecondsSinceEpoch}',
-      user: AuthUser(
-        id: DateTime.now().millisecondsSinceEpoch,
-        name: 'Google User',
-        email: 'google.user@saferoute.app',
-        phone: '',
-      ),
-    );
+    try {
+      final googleAccount = await _googleSignIn.signIn();
+      if (googleAccount == null) {
+        throw const AuthException('Google sign-in was cancelled.');
+      }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
-    return session;
+      final googleAuth = await googleAccount.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const AuthException('Google did not return a sign-in token.');
+      }
+
+      final result = await BackendService.loginWithGoogle(idToken: idToken);
+      if (result == null) {
+        throw const AuthException('Google login failed. Please try again.');
+      }
+
+      final error = result['error'] as String?;
+      if (error != null && error.isNotEmpty) {
+        throw AuthException(error);
+      }
+
+      final token = result['token'] as String?;
+      final userJson = result['user'] as Map<String, dynamic>?;
+
+      if (token == null || userJson == null) {
+        throw const AuthException('Invalid response from server');
+      }
+
+      final session = AuthSession(
+        token: token,
+        user: AuthUser(
+          id: userJson['id'] as int? ?? 0,
+          name: userJson['name'] as String? ?? googleAccount.displayName ?? 'Google User',
+          email: userJson['email'] as String? ?? googleAccount.email,
+          phone: '',
+        ),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
+      return session;
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      throw AuthException('Google login failed: $e');
+    }
   }
 
   Future<AuthSession> signInWithFacebook() async {
