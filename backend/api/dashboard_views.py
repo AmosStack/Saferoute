@@ -1,9 +1,11 @@
 import base64
+from decimal import Decimal
 import json
 import os
 from functools import wraps
 
-from django.contrib.auth.hashers import make_password
+from django.contrib.auth.hashers import make_password, check_password
+from django.core.signing import Signer, BadSignature
 from django.db import connection
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
@@ -11,6 +13,8 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .db import ensure_schema
+
+signer = Signer()
 
 
 def _dictfetchall(cursor):
@@ -39,18 +43,54 @@ def _json_ready(value):
 def _dashboard_auth(view_func):
     @wraps(view_func)
     def wrapper(request: HttpRequest, *args, **kwargs):
-        username = os.environ.get("DASHBOARD_USERNAME", "admin")
-        password = os.environ.get("DASHBOARD_PASSWORD", "admin123")
+        # Allow Basic Auth (useful for API/CLI) or cookie-based login for browsers.
+        username_env = os.environ.get("DASHBOARD_USERNAME", "admin")
+        password_env = os.environ.get("DASHBOARD_PASSWORD", "admin123")
         header = request.headers.get("Authorization", "")
 
+        def _check_credentials(u: str, p: str) -> bool:
+            ensure_schema()
+            # Check admins table first
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT password_hash FROM saferoute.admins WHERE username = %s LIMIT 1", [u])
+                row = cursor.fetchone()
+                if row:
+                    stored_hash = row[0]
+                    try:
+                        return check_password(p, stored_hash)
+                    except Exception:
+                        return False
+
+            # Fall back to env var
+            return u == username_env and p == password_env
+
+        # Basic header check
         if header.startswith("Basic "):
             try:
                 raw = base64.b64decode(header.removeprefix("Basic ").strip()).decode("utf-8")
                 supplied_username, supplied_password = raw.split(":", 1)
-                if supplied_username == username and supplied_password == password:
+                if _check_credentials(supplied_username, supplied_password):
                     return view_func(request, *args, **kwargs)
             except Exception:
                 pass
+
+        # Cookie-based (signed username)
+        signed = request.COOKIES.get("dashboard_signed")
+        if signed:
+            try:
+                unsigned = signer.unsign(signed)
+                # confirm the username exists (either in admins table or env)
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT 1 FROM saferoute.admins WHERE username = %s LIMIT 1", [unsigned])
+                    if cursor.fetchone() or unsigned == username_env:
+                        return view_func(request, *args, **kwargs)
+            except BadSignature:
+                pass
+
+        # If this looks like an HTML request, redirect to the login form so browsers don't show the Basic Auth prompt.
+        accept = request.headers.get("Accept", "")
+        if "text/html" in accept:
+            return _redirect("dashboard_login")
 
         response = HttpResponse("Authentication required", status=401)
         response["WWW-Authenticate"] = 'Basic realm="SafeRoute Admin"'
@@ -64,6 +104,44 @@ def _redirect(path_name: str, **params):
     if params:
         suffix = "?" + "&".join(f"{key}={value}" for key, value in params.items())
     return HttpResponseRedirect(reverse(path_name) + suffix)
+
+
+def dashboard_login(request: HttpRequest):
+    ensure_schema()
+    error = ""
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+        if not username or not password:
+            error = "Username and password are required."
+        else:
+            # validate
+            def _check_credentials(u: str, p: str) -> bool:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT password_hash FROM saferoute.admins WHERE username = %s LIMIT 1", [u])
+                    row = cursor.fetchone()
+                    if row:
+                        try:
+                            return check_password(p, row[0])
+                        except Exception:
+                            return False
+                # fallback to env
+                return u == os.environ.get("DASHBOARD_USERNAME", "admin") and p == os.environ.get("DASHBOARD_PASSWORD", "admin123")
+
+            if _check_credentials(username, password):
+                response = _redirect("dashboard_home")
+                response.set_cookie("dashboard_signed", signer.sign(username), httponly=True, max_age=60 * 60 * 24)
+                return response
+            else:
+                error = "Invalid username or password."
+
+    return render(request, "dashboard/login.html", {"error": error})
+
+
+def dashboard_logout(request: HttpRequest):
+    response = _redirect("dashboard_login")
+    response.delete_cookie("dashboard_signed")
+    return response
 
 
 def _metrics():
