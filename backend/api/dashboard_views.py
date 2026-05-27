@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 from functools import wraps
 
@@ -23,6 +24,16 @@ def _dictfetchone(cursor):
         return None
     columns = [column[0] for column in cursor.description]
     return dict(zip(columns, row))
+
+
+def _json_ready(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {key: _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(item) for item in value]
+    return value
 
 
 def _dashboard_auth(view_func):
@@ -63,10 +74,12 @@ def _metrics():
             SELECT
               (SELECT COUNT(*) FROM saferoute.users) AS users,
               (SELECT COUNT(*) FROM saferoute.recorded_routes) AS recorded_routes,
+                            (SELECT COUNT(*) FROM saferoute.travel_logs) AS travel_logs,
               COALESCE((SELECT SUM(distance_meters) FROM saferoute.recorded_routes), 0) AS distance_meters,
               COALESCE((SELECT SUM(duration_seconds) FROM saferoute.recorded_routes), 0) AS duration_seconds,
               COALESCE((SELECT ROUND(AVG(rating)::numeric, 2) FROM saferoute.recorded_routes WHERE rating IS NOT NULL), 0) AS average_rating,
-              (SELECT COUNT(*) FROM saferoute.safety_reports) AS safety_reports
+                            (SELECT COUNT(*) FROM saferoute.safety_reports) AS safety_reports,
+                            (SELECT COUNT(*) FROM saferoute.incidents) AS incidents
             """
         )
         row = _dictfetchone(cursor)
@@ -76,22 +89,147 @@ def _metrics():
     return row
 
 
+def _recent_activity_rows(limit: int = 8):
+        with connection.cursor() as cursor:
+                cursor.execute(
+                        """
+                        SELECT *
+                        FROM (
+                            SELECT
+                                'Recorded route' AS source,
+                                rr.id::text AS id,
+                                u.name AS user_name,
+                                u.email,
+                                rr.start_location_name,
+                                rr.end_location_name,
+                                rr.transport_mode,
+                                rr.distance_meters,
+                                rr.duration_seconds,
+                                rr.rating,
+                                rr.started_at,
+                                rr.ended_at,
+                                rr.created_at,
+                                rr.coordinates
+                            FROM saferoute.recorded_routes rr
+                            JOIN saferoute.users u ON u.id = rr.user_id
+
+                            UNION ALL
+
+                            SELECT
+                                'Travel log' AS source,
+                                tl.id::text AS id,
+                                u.name AS user_name,
+                                u.email,
+                                COALESCE(rr.start_location_name, 'Unknown start') AS start_location_name,
+                                COALESCE(rr.end_location_name, 'Unknown end') AS end_location_name,
+                                COALESCE(tm.name, rr.transport_mode, 'unknown') AS transport_mode,
+                                COALESCE(tl.distance_meters, rr.distance_meters, 0) AS distance_meters,
+                                COALESCE(tl.duration_seconds, rr.duration_seconds, 0) AS duration_seconds,
+                                rr.rating,
+                                COALESCE(tl.started_at, rr.started_at, tl.created_at) AS started_at,
+                                COALESCE(tl.ended_at, rr.ended_at, tl.created_at) AS ended_at,
+                                COALESCE(tl.created_at, rr.created_at) AS created_at,
+                                rr.coordinates
+                            FROM saferoute.travel_logs tl
+                            JOIN saferoute.users u ON u.id = tl.user_id
+                            LEFT JOIN saferoute.recorded_routes rr ON rr.id = tl.recorded_route_id
+                            LEFT JOIN saferoute.transport_modes tm ON tm.id = tl.transport_mode_id
+                            WHERE tl.recorded_route_id IS NULL
+                        ) activity
+                        ORDER BY created_at DESC
+                        LIMIT %s
+                        """,
+                        [limit],
+                )
+                rows = _dictfetchall(cursor)
+
+        for row in rows:
+                row["coordinates"] = _json_ready(row.get("coordinates") or [])
+        return rows
+
+
+def _route_map_rows(limit: int = 20):
+        with connection.cursor() as cursor:
+                cursor.execute(
+                        """
+                        SELECT rr.id::text AS id, u.name AS user_name, rr.start_location_name,
+                                     rr.end_location_name, rr.transport_mode, rr.distance_meters,
+                                     rr.duration_seconds, rr.rating, rr.start_latitude, rr.start_longitude,
+                                     rr.end_latitude, rr.end_longitude, rr.coordinates, rr.created_at
+                        FROM saferoute.recorded_routes rr
+                        JOIN saferoute.users u ON u.id = rr.user_id
+                        ORDER BY rr.created_at DESC
+                        LIMIT %s
+                        """,
+                        [limit],
+                )
+                rows = _dictfetchall(cursor)
+
+        for row in rows:
+                row["coordinates"] = _json_ready(row.get("coordinates") or [])
+                row["start_latitude"] = _json_ready(row.get("start_latitude"))
+                row["start_longitude"] = _json_ready(row.get("start_longitude"))
+                row["end_latitude"] = _json_ready(row.get("end_latitude"))
+                row["end_longitude"] = _json_ready(row.get("end_longitude"))
+        return rows
+
+
+def _complaint_map_rows(limit: int = 100):
+        with connection.cursor() as cursor:
+                cursor.execute(
+                        """
+                        WITH complaint_points AS (
+                            SELECT
+                                location_id,
+                                'safety_report' AS complaint_type,
+                                description,
+                                severity,
+                                created_at
+                            FROM saferoute.safety_reports
+                            WHERE location_id IS NOT NULL
+
+                            UNION ALL
+
+                            SELECT
+                                location_id,
+                                'incident' AS complaint_type,
+                                description,
+                                NULL AS severity,
+                                created_at
+                            FROM saferoute.incidents
+                            WHERE location_id IS NOT NULL
+                        )
+                        SELECT
+                            l.id AS location_id,
+                            COALESCE(l.name, 'Reported location') AS location_name,
+                            l.latitude,
+                            l.longitude,
+                            COUNT(*) AS complaint_count,
+                            COUNT(*) FILTER (WHERE complaint_type = 'safety_report') AS safety_reports,
+                            COUNT(*) FILTER (WHERE complaint_type = 'incident') AS incidents,
+                            MAX(created_at) AS latest_created_at,
+                            MAX(description) AS sample_description,
+                            MAX(severity) AS max_severity
+                        FROM complaint_points cp
+                        JOIN saferoute.locations l ON l.id = cp.location_id
+                        GROUP BY l.id, l.name, l.latitude, l.longitude
+                        ORDER BY complaint_count DESC, latest_created_at DESC
+                        LIMIT %s
+                        """,
+                        [limit],
+                )
+                rows = _dictfetchall(cursor)
+
+        for row in rows:
+                row["latitude"] = _json_ready(row.get("latitude"))
+                row["longitude"] = _json_ready(row.get("longitude"))
+        return rows
+
+
 @_dashboard_auth
 def dashboard_home(request: HttpRequest):
     ensure_schema()
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT rr.id, u.name AS user_name, rr.start_location_name, rr.end_location_name,
-                   rr.transport_mode, rr.distance_meters, rr.rating, rr.created_at
-            FROM saferoute.recorded_routes rr
-            JOIN saferoute.users u ON u.id = rr.user_id
-            ORDER BY rr.created_at DESC
-            LIMIT 8
-            """
-        )
-        recent_routes = _dictfetchall(cursor)
-
         cursor.execute(
             """
             SELECT transport_mode, COUNT(*) AS route_count,
@@ -108,6 +246,10 @@ def dashboard_home(request: HttpRequest):
     for row in mode_rows:
         row["width"] = int((row["route_count"] / max_count) * 100)
 
+    recent_routes = _recent_activity_rows()
+    route_map_data = _route_map_rows()
+    complaint_map_data = _complaint_map_rows()
+
     return render(
         request,
         "dashboard/home.html",
@@ -116,6 +258,8 @@ def dashboard_home(request: HttpRequest):
             "metrics": _metrics(),
             "recent_routes": recent_routes,
             "mode_rows": mode_rows,
+            "route_map_data": route_map_data,
+            "complaint_map_data": complaint_map_data,
         },
     )
 
@@ -297,7 +441,24 @@ def route_detail(request: HttpRequest, route_id):
     return render(
         request,
         "dashboard/route_detail.html",
-        {"active": "routes", "route": route, "coordinates": coordinates[:25], "point_count": len(coordinates)},
+        {
+            "active": "routes",
+            "route": route,
+            "coordinates": coordinates[:25],
+            "point_count": len(coordinates),
+            "route_map_data": {
+                "id": str(route["id"]),
+                "user_name": route.get("user_name"),
+                "start_location_name": route.get("start_location_name"),
+                "end_location_name": route.get("end_location_name"),
+                "transport_mode": route.get("transport_mode"),
+                "start_latitude": _json_ready(route.get("start_latitude")),
+                "start_longitude": _json_ready(route.get("start_longitude")),
+                "end_latitude": _json_ready(route.get("end_latitude")),
+                "end_longitude": _json_ready(route.get("end_longitude")),
+                "coordinates": _json_ready(coordinates),
+            },
+        },
     )
 
 
