@@ -211,3 +211,16 @@ ON saferoute.travel_logs(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_safety_reports_user_id
 ON saferoute.safety_reports(user_id);
+
+
+CREATE TABLE IF NOT EXISTS saferoute.admins (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(120) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO saferoute.admins (username, password_hash)
+VALUES ('admin', 'admin123')
+ON CONFLICT (username)
+DO UPDATE SET password_hash = EXCLUDED.password_hash;
