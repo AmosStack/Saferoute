@@ -362,12 +362,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
 
     final labels = <String, String>{
-      if (selectedMode != null) selectedMode: 'Selected transport',
       'car': 'Fastest road',
       'bicycle': 'Balanced',
       'walking': 'Eco walk',
       'bus': 'Bus friendly',
     };
+    if (selectedMode != null) {
+      labels[selectedMode] = 'Selected transport';
+    }
 
     final results = await Future.wait(
       uniqueModes.map((mode) => RoutePathPlannerService.calculatePath(start, destination, mode)),
