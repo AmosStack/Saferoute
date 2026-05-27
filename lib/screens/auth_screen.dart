@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_models.dart';
+import '../l10n/app_strings.dart';
 import '../services/auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key, required this.onAuthenticated});
+  const AuthScreen({
+    super.key,
+    required this.localeCode,
+    required this.onLocaleChanged,
+    required this.onAuthenticated,
+  });
 
+  final String localeCode;
+  final ValueChanged<String> onLocaleChanged;
   final ValueChanged<AuthSession> onAuthenticated;
 
   @override
@@ -107,6 +115,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings(widget.localeCode);
 
     return Scaffold(
       body: Stack(
@@ -129,10 +138,34 @@ class _AuthScreenState extends State<AuthScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ChoiceChip(
+                                    label: Text(strings.english),
+                                    selected: widget.localeCode == 'en',
+                                    onSelected: _isSubmitting
+                                        ? null
+                                        : (_) => widget.onLocaleChanged('en'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: ChoiceChip(
+                                    label: Text(strings.swahili),
+                                    selected: widget.localeCode == 'sw',
+                                    onSelected: _isSubmitting
+                                        ? null
+                                        : (_) => widget.onLocaleChanged('sw'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
                             Text(
                               _isRegisterMode
-                                  ? 'Create your account'
-                                  : 'Welcome back',
+                                  ? strings.createAccount
+                                  : strings.welcomeBack,
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
@@ -141,8 +174,8 @@ class _AuthScreenState extends State<AuthScreen> {
                             const SizedBox(height: 6),
                             Text(
                               _isRegisterMode
-                                  ? 'Register with your details to continue.'
-                                  : 'Sign in to continue your safer commute.',
+                                  ? strings.registerPrompt
+                                  : strings.loginPrompt,
                               style: TextStyle(color: scheme.tertiary),
                             ),
                             const SizedBox(height: 20),
@@ -151,12 +184,11 @@ class _AuthScreenState extends State<AuthScreen> {
                                 controller: _nameController,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'Full name',
                                   prefixIcon: Icon(Icons.person_outline),
-                                ),
+                                ).copyWith(labelText: strings.fullName),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Enter your name';
+                                    return strings.enterName;
                                   }
                                   return null;
                                 },
@@ -168,13 +200,12 @@ class _AuthScreenState extends State<AuthScreen> {
                               textInputAction: TextInputAction.next,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
-                                labelText: 'Email address',
                                 prefixIcon: Icon(Icons.email_outlined),
-                              ),
+                              ).copyWith(labelText: strings.emailAddress),
                               validator: (value) {
                                 final text = value?.trim() ?? '';
                                 if (text.isEmpty || !text.contains('@')) {
-                                  return 'Enter a valid email';
+                                  return strings.enterValidEmail;
                                 }
                                 return null;
                               },
@@ -186,13 +217,12 @@ class _AuthScreenState extends State<AuthScreen> {
                                 textInputAction: TextInputAction.next,
                                 keyboardType: TextInputType.phone,
                                 decoration: const InputDecoration(
-                                  labelText: 'Phone number',
                                   prefixIcon: Icon(Icons.phone_outlined),
-                                ),
+                                ).copyWith(labelText: strings.phoneNumber),
                                 validator: (value) {
                                   if (value == null ||
                                       value.trim().length < 7) {
-                                    return 'Enter a valid phone number';
+                                    return strings.enterValidPhone;
                                   }
                                   return null;
                                 },
@@ -203,12 +233,11 @@ class _AuthScreenState extends State<AuthScreen> {
                               controller: _passwordController,
                               obscureText: true,
                               decoration: const InputDecoration(
-                                labelText: 'Password',
                                 prefixIcon: Icon(Icons.lock_outline),
-                              ),
+                              ).copyWith(labelText: strings.password),
                               validator: (value) {
                                 if (value == null || value.length < 8) {
-                                  return 'Password must be at least 8 characters';
+                                  return strings.passwordMin;
                                 }
                                 return null;
                               },
@@ -217,7 +246,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             FilledButton(
                               onPressed: _isSubmitting ? null : _submit,
                               child: Text(
-                                _isRegisterMode ? 'Register' : 'Log in',
+                                _isRegisterMode
+                                    ? strings.register
+                                    : strings.logIn,
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -231,8 +262,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                     },
                               child: Text(
                                 _isRegisterMode
-                                    ? 'Already have an account? Log in'
-                                    : 'Need an account? Register',
+                                    ? strings.alreadyHaveAccount
+                                    : strings.needAccount,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -244,7 +275,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                     horizontal: 10,
                                   ),
                                   child: Text(
-                                    'or',
+                                    strings.or,
                                     style: TextStyle(color: scheme.tertiary),
                                   ),
                                 ),
@@ -260,7 +291,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 text: 'G',
                                 color: Color(0xFF1A73E8),
                               ),
-                              label: const Text('Continue with Google'),
+                              label: Text(strings.continueGoogle),
                             ),
                             const SizedBox(height: 10),
                             OutlinedButton.icon(
@@ -271,7 +302,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 text: 'f',
                                 color: Color(0xFF1877F2),
                               ),
-                              label: const Text('Continue with Facebook'),
+                              label: Text(strings.continueFacebook),
                             ),
                           ],
                         ),
