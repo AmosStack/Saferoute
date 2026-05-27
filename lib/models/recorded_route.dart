@@ -36,7 +36,7 @@ class RecordedRoute {
     final hours = mins ~/ 60;
     final remainingMins = mins % 60;
     if (hours == 0) return '$mins min';
-    return '$hours h ${remainingMins} min';
+    return '$hours h $remainingMins min';
   }
 
   String get distanceStr {
