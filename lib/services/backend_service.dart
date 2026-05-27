@@ -1,50 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/recorded_route.dart';
 
 class BackendService {
-  static const String _baseUrlPrefKey = 'backend_base_url';
   static const Duration _requestTimeout = Duration(seconds: 3);
   static const String _defaultLanFallbackHost = String.fromEnvironment(
     'SAFE_ROUTE_LAN_FALLBACK_HOST',
     defaultValue: '192.168.1.20',
   );
-  static String? _configuredBaseUrl;
-
-  static Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    _configuredBaseUrl = prefs.getString(_baseUrlPrefKey)?.trim();
-    if (_configuredBaseUrl != null && _configuredBaseUrl!.isEmpty) {
-      _configuredBaseUrl = null;
-    }
-  }
-
-  static Future<String?> getStoredBaseUrl() async {
-    if (_configuredBaseUrl != null) {
-      return _configuredBaseUrl;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_baseUrlPrefKey)?.trim();
-    return stored == null || stored.isEmpty ? null : stored;
-  }
-
-  static Future<void> setStoredBaseUrl(String? value) async {
-    final trimmed = value?.trim();
-    final prefs = await SharedPreferences.getInstance();
-
-    if (trimmed == null || trimmed.isEmpty) {
-      await prefs.remove(_baseUrlPrefKey);
-      _configuredBaseUrl = null;
-      return;
-    }
-
-    await prefs.setString(_baseUrlPrefKey, trimmed);
-    _configuredBaseUrl = trimmed;
-  }
 
   static String _baseUrlFromHost(String hostOrUrl) {
     final trimmed = hostOrUrl.trim();
@@ -86,10 +51,6 @@ class BackendService {
     const serverHost = String.fromEnvironment('SAFE_ROUTE_SERVER_HOST');
     if (serverHost.isNotEmpty) {
       _addCandidate(candidates, _baseUrlFromHost(serverHost));
-    }
-
-    if (_configuredBaseUrl != null && _configuredBaseUrl!.isNotEmpty) {
-      _addCandidate(candidates, _configuredBaseUrl);
     }
 
     if (kIsWeb) {
@@ -163,7 +124,7 @@ class BackendService {
       return {
         'error': kIsWeb
             ? 'Unable to connect to the backend. Check the server URL and make sure the backend is running.'
-            : 'Unable to connect to the backend. If the phone is on mobile data or a different network, use a public HTTPS API URL with `SAFE_ROUTE_API_BASE_URL` or set the in-app Backend URL.',
+            : 'Unable to connect to the backend. If the phone is on mobile data or a different network, use a public HTTPS API URL with `SAFE_ROUTE_API_BASE_URL`.',
         'exception': e.toString(),
       };
     }
