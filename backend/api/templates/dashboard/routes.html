@@ -1,0 +1,51 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Routes - SafeRoute Admin{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Routes</h1>
+    <div class="subtle">Inspect recorded journeys, modes, distance, duration, and ratings.</div>
+  </div>
+  <a class="button" href="/dashboard/analytics">Open analytics</a>
+</div>
+
+<section class="card">
+  <form class="filters" method="get">
+    <label>Search
+      <input name="q" value="{{ query }}" placeholder="User or location">
+    </label>
+    <label>Mode
+      <select name="mode">
+        <option value="">All modes</option>
+        {% for mode in modes %}
+        <option value="{{ mode }}" {% if mode == selected_mode %}selected{% endif %}>{{ mode }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="primary" type="submit">Filter</button>
+    <a class="button" href="/dashboard/routes">Reset</a>
+  </form>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <table>
+    <thead><tr><th>User</th><th>Route</th><th>Mode</th><th>Distance</th><th>Duration</th><th>Rating</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+      {% for route in routes %}
+      <tr>
+        <td>{{ route.user_name }}<br><span class="subtle">{{ route.email }}</span></td>
+        <td>{{ route.start_location_name }} to {{ route.end_location_name }}</td>
+        <td><span class="pill">{{ route.transport_mode }}</span></td>
+        <td>{{ route.distance_meters|floatformat:0 }} m</td>
+        <td>{{ route.duration_seconds }} s</td>
+        <td>{{ route.rating|default:"-" }}</td>
+        <td>{{ route.created_at }}</td>
+        <td><a class="button" href="/dashboard/routes/{{ route.id }}">Details</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8">No routes found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
