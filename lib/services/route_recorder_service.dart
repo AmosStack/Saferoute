@@ -11,12 +11,19 @@ class RouteRecorderService {
 
   StreamSubscription<Position>? _positionStream;
   final List<LatLng> _coordinates = [];
+  Position? _currentPosition;
   DateTime? _startTime;
   double _totalDistance = 0;
 
   bool get isRecording => _positionStream != null;
   List<LatLng> get coordinates => _coordinates;
   double get totalDistance => _totalDistance;
+  Position? get currentPosition => _currentPosition;
+  LatLng? get currentLatLng {
+    final position = _currentPosition;
+    if (position == null) return null;
+    return LatLng(position.latitude, position.longitude);
+  }
 
   final List<VoidCallback> _listeners = [];
 
@@ -48,15 +55,17 @@ class RouteRecorderService {
     _coordinates.clear();
     _totalDistance = 0;
     _startTime = DateTime.now();
+    _currentPosition = null;
     _coordinates.add(startPoint);
 
     // Listen to position updates
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 10, // Update every 10 meters
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5, // Update more frequently for live tracking
       ),
     ).listen((Position position) {
+      _currentPosition = position;
       final newPoint = LatLng(position.latitude, position.longitude);
       
       // Calculate distance from last point
@@ -110,12 +119,16 @@ class RouteRecorderService {
     );
   }
 
-  /// Checks if user is close to destination (within 50 meters)
-  bool isNearDestination(LatLng destination) {
-    if (_coordinates.isEmpty) return false;
-    final currentPoint = _coordinates.last;
-    final distance = _calculateDistance(currentPoint, destination);
-    return distance < 50; // 50 meter threshold
+  /// Checks if user is close to destination using the live position and GPS accuracy.
+  bool isNearDestination(LatLng destination, {double thresholdMeters = 50}) {
+    final livePoint = currentLatLng ?? (_coordinates.isNotEmpty ? _coordinates.last : null);
+    if (livePoint == null) return false;
+
+    final accuracyThreshold = _currentPosition?.accuracy != null
+        ? math.max(thresholdMeters, _currentPosition!.accuracy * 2)
+        : thresholdMeters;
+    final distance = _calculateDistance(livePoint, destination);
+    return distance <= accuracyThreshold;
   }
 
   /// Cleanup
