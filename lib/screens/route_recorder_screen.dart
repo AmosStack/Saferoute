@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as ll;
+import 'package:url_launcher/url_launcher.dart';
 
+import '../data/mock_data.dart';
 import '../services/backend_service.dart';
 import '../services/route_recorder_service.dart';
+import '../services/user_settings_service.dart';
 
 class RouteRecorderScreen extends StatefulWidget {
   const RouteRecorderScreen({
@@ -49,6 +52,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   final TextEditingController _incidentDescriptionController = TextEditingController();
   String _incidentType = 'Unsafe road condition';
 
+  static const String _sosIncidentType = 'SOS';
+
   static const List<String> _incidentTypes = <String>[
     'Unsafe road condition',
     'Harassment',
@@ -57,6 +62,126 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     'Vehicle issue',
     'Other',
   ];
+
+  Future<List<_SosRecipient>> _loadSosRecipients() async {
+    final trustedContacts = await UserSettingsService.loadTrustedContacts();
+    if (trustedContacts.isNotEmpty) {
+      return trustedContacts
+          .map(
+            (contact) => _SosRecipient(
+              name: contact.name,
+              phone: contact.phone,
+              note: contact.relationship.isNotEmpty ? contact.relationship : 'Trusted contact',
+            ),
+          )
+          .toList(growable: false);
+    }
+
+    return emergencyContacts
+        .map(
+          (contact) => _SosRecipient(
+            name: contact.label,
+            phone: contact.number,
+            note: contact.note,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> _launchSms(_SosRecipient recipient, String message) async {
+    final uri = Uri.parse('sms:${recipient.phone}?body=${Uri.encodeComponent(message)}');
+    if (!await canLaunchUrl(uri)) {
+      throw Exception('No messaging app can handle this request.');
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _sendSosToRecipient(_SosRecipient recipient) async {
+    final currentPoint = _recorderService.currentLatLng ?? widget.startPoint;
+    final locationName = _currentLocationName ?? await _reverseGeocode(currentPoint) ?? 'Unknown location';
+    final message = [
+      'SOS from SafeRoute.',
+      'I need help and I am traveling now.',
+      'Location: $locationName',
+      'Map: https://maps.google.com/?q=${currentPoint.latitude},${currentPoint.longitude}',
+    ].join(' ');
+
+    await _launchSms(recipient, message);
+
+    if (widget.userId != null) {
+      try {
+        final locationId = await _createLocationRecord(currentPoint, preferredName: locationName);
+        await BackendService.createIncident(
+          incidentType: _sosIncidentType,
+          description: 'SOS sent to ${recipient.name}. $message',
+          locationId: locationId,
+          occurredAt: DateTime.now(),
+        );
+      } catch (e) {
+        debugPrint('Failed to log SOS incident: $e');
+      }
+    }
+  }
+
+  Future<void> _showSosSheet() async {
+    final recipients = await _loadSosRecipients();
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Send SOS', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                const Text('Choose a trusted person or emergency contact to receive your location message.'),
+                const SizedBox(height: 12),
+                for (final recipient in recipients)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      tileColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFF0E7C7B),
+                        child: Icon(Icons.message, color: Colors.white),
+                      ),
+                      title: Text(recipient.name),
+                      subtitle: Text('${recipient.phone}\n${recipient.note}'),
+                      isThreeLine: true,
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        try {
+                          await _sendSosToRecipient(recipient);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('SOS prepared for ${recipient.name}')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Could not send SOS: $e')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   gmaps.LatLng _toGoogleLatLng(ll.LatLng point) {
     return gmaps.LatLng(point.latitude, point.longitude);
@@ -635,15 +760,35 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
             Positioned(
               bottom: 24,
               right: 12,
-              child: FloatingActionButton.extended(
-                onPressed: _showIncidentDialog,
-                backgroundColor: Colors.red,
-                icon: const Icon(Icons.report_problem),
-                label: const Text('Report issue'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton.extended(
+                    onPressed: _showSosSheet,
+                    backgroundColor: Colors.red.shade700,
+                    icon: const Icon(Icons.sos),
+                    label: const Text('SOS'),
+                  ),
+                  const SizedBox(height: 10),
+                  FloatingActionButton.extended(
+                    onPressed: _showIncidentDialog,
+                    backgroundColor: Colors.red,
+                    icon: const Icon(Icons.report_problem),
+                    label: const Text('Report issue'),
+                  ),
+                ],
               ),
             ),
         ],
       ),
     );
   }
+}
+
+class _SosRecipient {
+  const _SosRecipient({required this.name, required this.phone, required this.note});
+
+  final String name;
+  final String phone;
+  final String note;
 }
