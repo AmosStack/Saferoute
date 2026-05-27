@@ -221,6 +221,6 @@ CREATE TABLE IF NOT EXISTS saferoute.admins (
 );
 
 INSERT INTO saferoute.admins (username, password_hash)
-VALUES ('admin', '<django_password_hash_for_admin123>')
+VALUES ('admin', 'pbkdf2_sha256$870000$saferoute-admin$YGM/Ri/+IeI1dZFTWtfFrYOIOSV/3THvCtuxis0ClVk=')
 ON CONFLICT (username)
 DO UPDATE SET password_hash = EXCLUDED.password_hash;
