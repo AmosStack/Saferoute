@@ -1,0 +1,49 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Users - SafeRoute Admin{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Users</h1>
+    <div class="subtle">Create, edit, and remove app accounts.</div>
+  </div>
+  <a class="button primary" href="/dashboard/users/new">New user</a>
+</div>
+{% if message %}<div class="notice ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+
+<section class="card">
+  <form class="filters" method="get">
+    <label>Search
+      <input name="q" value="{{ query }}" placeholder="Name or email">
+    </label>
+    <button class="primary" type="submit">Filter</button>
+    <a class="button" href="/dashboard/users">Reset</a>
+  </form>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Routes</th><th>Distance</th><th>Created</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user.id }}</td>
+        <td>{{ user.name }}</td>
+        <td>{{ user.email }}</td>
+        <td>{{ user.route_count }}</td>
+        <td>{{ user.distance_meters|floatformat:0 }} m</td>
+        <td>{{ user.created_at }}</td>
+        <td>
+          <a class="button" href="/dashboard/users/{{ user.id }}/edit">Edit</a>
+          <form method="post" action="/dashboard/users/{{ user.id }}/delete" style="display:inline;">
+            <button class="danger" type="submit" onclick="return confirm('Delete this user and related data?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7">No users found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
