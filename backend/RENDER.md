@@ -57,6 +57,8 @@ The dashboard will be:
 https://<your-service-name>.onrender.com/dashboard
 ```
 
+Sign-in uses the browser's Basic Auth prompt, not a separate form. Use the values from `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD` in Render. If you already tried the wrong password, open the dashboard in an incognito/private window so the browser does not reuse cached credentials.
+
 ## 4. Build the Flutter App for Render
 
 Use the Render URL as the API base:
