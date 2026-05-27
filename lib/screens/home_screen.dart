@@ -196,7 +196,7 @@ class _MyRoutesList extends StatelessWidget {
               ),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
