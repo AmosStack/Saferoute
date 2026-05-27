@@ -76,12 +76,22 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _isSubmitting = true;
     });
-    final session = await AuthService.instance.signInWithGoogle();
-    if (!mounted) return;
-    setState(() {
-      _isSubmitting = false;
-    });
-    widget.onAuthenticated(session);
+    try {
+      final session = await AuthService.instance.signInWithGoogle();
+      if (!mounted) return;
+      widget.onAuthenticated(session);
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   Future<void> _continueWithFacebook() async {
