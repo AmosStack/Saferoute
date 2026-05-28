@@ -6,6 +6,7 @@ import '../models/recorded_route.dart';
 import '../services/backend_service.dart';
 import 'map_picker_screen.dart';
 import 'profile_settings_screen.dart';
+import '../widgets/modern_surface.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -92,13 +93,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
         title: Text(
-          widget.user == null
-              ? strings.appName
-              : '${strings.appName} - ${widget.user!.name}',
+          widget.user == null ? strings.appName : '${strings.appName} - ${widget.user!.name}',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
@@ -160,11 +156,15 @@ class _HomeLandingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = AppStrings(localeCode);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
         _HeroCard(localeCode: localeCode, user: user, onOpenMap: onOpenMap),
         const SizedBox(height: 14),
-        Text(strings.quickActions, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        GreenSectionHeader(
+          title: strings.quickActions,
+          subtitle: strings.heroSubtitle,
+          trailing: const Icon(Icons.auto_awesome, color: Colors.white),
+        ),
         const SizedBox(height: 10),
         GridView.count(
           crossAxisCount: 2,
@@ -224,16 +224,17 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings(localeCode);
-    return Container(
+    return HoverSurface(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0E7C7B), Color(0xFF274060)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
+      borderRadius: 26,
+      backgroundColor: Colors.transparent,
+      gradient: const LinearGradient(
+        colors: [Color(0xFF0E7C7B), Color(0xFF274060)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
+      borderColor: Colors.white.withValues(alpha: 0.12),
+      shadowColor: const Color(0xFF0E7C7B),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -276,29 +277,23 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return HoverSurface(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: const Color(0xFF0E7C7B).withValues(alpha: 0.12),
-              child: Icon(icon, color: const Color(0xFF0E7C7B)),
-            ),
-            const Spacer(),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis),
-          ],
-        ),
+      padding: const EdgeInsets.all(14),
+      borderRadius: 18,
+      backgroundColor: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: const Color(0xFF0E7C7B).withValues(alpha: 0.12),
+            child: Icon(icon, color: const Color(0xFF0E7C7B)),
+          ),
+          const Spacer(),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis),
+        ],
       ),
     );
   }
@@ -312,13 +307,10 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return HoverSurface(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
-      ),
+      borderRadius: 16,
+      backgroundColor: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -355,7 +347,7 @@ class _RouteHistoryPage extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
             children: [
-              _SectionHeader(
+              GreenSectionHeader(
                 title: strings.previousRoutes,
                 subtitle: strings.previousRoutesSubtitle,
               ),
@@ -401,13 +393,10 @@ class _SavedRouteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings(localeCode);
-    return Container(
+    return HoverSurface(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
-      ),
+      borderRadius: 16,
+      backgroundColor: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -452,25 +441,6 @@ class _SavedRouteCard extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 4),
-        Text(subtitle, style: TextStyle(color: Colors.black.withValues(alpha: 0.58))),
-      ],
-    );
-  }
-}
-
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.title, required this.subtitle, required this.icon});
 
@@ -480,13 +450,10 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return HoverSurface(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
-      ),
+      borderRadius: 16,
+      backgroundColor: Colors.white,
       child: Column(
         children: [
           Icon(icon, size: 34, color: const Color(0xFF274060)),
