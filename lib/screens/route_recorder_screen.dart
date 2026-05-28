@@ -260,6 +260,35 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     await _moveCamera(widget.startPoint, zoom: 16.0);
   }
 
+  Future<void> _cancelRoute() async {
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancel route?'),
+          content: const Text('This will discard the current recording and return you to the previous screen.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep recording'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Discard'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDiscard != true) return;
+
+    await _recorderService.cancelRecording();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   Future<void> _saveRoute({ll.LatLng? locationPoint, String? locationName}) async {
     final route = await _recorderService.stopRecording(
       widget.destination,
@@ -646,10 +675,18 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   Widget build(BuildContext context) {
     final coords = _recorderService.coordinates;
     final currentPoint = _recorderService.currentLatLng;
+    final isRecording = _recorderService.isRecording;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recording Route'),
+        title: Text(isRecording ? 'Recording route' : 'Route paused'),
+        actions: [
+          TextButton.icon(
+            onPressed: _cancelRoute,
+            icon: const Icon(Icons.close, color: Colors.white),
+            label: const Text('Cancel', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -759,7 +796,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
           if (!_hasArrivedNotified)
             Positioned(
               bottom: 24,
-              right: 12,
+              left: 12,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
