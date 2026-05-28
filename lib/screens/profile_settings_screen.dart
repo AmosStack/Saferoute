@@ -4,6 +4,7 @@ import '../auth/auth_models.dart';
 import '../l10n/app_strings.dart';
 import '../models/user_settings.dart';
 import '../services/user_settings_service.dart';
+import '../widgets/modern_surface.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({
@@ -330,19 +331,18 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return HoverSurface(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.93),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
-      ),
+      borderRadius: 18,
+      backgroundColor: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(color: Colors.black.withValues(alpha: 0.6))),
+          GreenSectionHeader(
+            title: title,
+            subtitle: subtitle,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
           const SizedBox(height: 14),
           child,
         ],
@@ -360,13 +360,11 @@ class _TrustedContactTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return HoverSurface(
+      onTap: onEdit,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-      ),
+      borderRadius: 14,
+      backgroundColor: Colors.white,
       child: Row(
         children: [
           CircleAvatar(
