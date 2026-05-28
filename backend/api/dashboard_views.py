@@ -35,6 +35,14 @@ def _dictfetchone(cursor):
 def _json_ready(value):
     if isinstance(value, Decimal):
         return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("[") or stripped.startswith("{"):
+            try:
+                return _json_ready(json.loads(stripped))
+            except json.JSONDecodeError:
+                return value
+        return value
     if isinstance(value, dict):
         return {key: _json_ready(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -528,7 +536,9 @@ def route_detail(request: HttpRequest, route_id):
     if not route:
         return _redirect("routes_list")
 
-    coordinates = route.get("coordinates") or []
+    coordinates = _json_ready(route.get("coordinates") or [])
+    if not isinstance(coordinates, list):
+        coordinates = []
     return render(
         request,
         "dashboard/route_detail.html",
