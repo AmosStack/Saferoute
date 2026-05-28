@@ -19,6 +19,7 @@ class RouteRecorderService {
   List<LatLng> get coordinates => _coordinates;
   double get totalDistance => _totalDistance;
   Position? get currentPosition => _currentPosition;
+  bool get hasRecordedPoints => _coordinates.length > 1;
   LatLng? get currentLatLng {
     final position = _currentPosition;
     if (position == null) return null;
@@ -34,6 +35,28 @@ class RouteRecorderService {
     for (final listener in _listeners) {
       listener();
     }
+  }
+
+  LocationSettings _buildLocationSettings() {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 3,
+        intervalDuration: const Duration(seconds: 1),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'SafeRoute is recording your trip',
+          notificationText: 'Location tracking stays active while you move',
+          setOngoing: true,
+          enableWakeLock: true,
+          enableWifiLock: true,
+        ),
+      );
+    }
+
+    return const LocationSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 3,
+    );
   }
 
   /// Calculate distance between two points using Haversine formula (in meters)
@@ -60,24 +83,42 @@ class RouteRecorderService {
 
     // Listen to position updates
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5, // Update more frequently for live tracking
-      ),
+      locationSettings: _buildLocationSettings(),
     ).listen((Position position) {
+      if (position.accuracy > 45 && _coordinates.length > 1) {
+        _currentPosition = position;
+        _notifyListeners();
+        return;
+      }
+
       _currentPosition = position;
       final newPoint = LatLng(position.latitude, position.longitude);
-      
+
       // Calculate distance from last point
       if (_coordinates.isNotEmpty) {
         final lastPoint = _coordinates.last;
         final distance = _calculateDistance(lastPoint, newPoint);
-        _totalDistance += distance;
+        if (distance >= 1.5) {
+          _totalDistance += distance;
+        } else {
+          _notifyListeners();
+          return;
+        }
       }
 
       _coordinates.add(newPoint);
       _notifyListeners();
     });
+  }
+
+  Future<void> cancelRecording() async {
+    await _positionStream?.cancel();
+    _positionStream = null;
+    _coordinates.clear();
+    _currentPosition = null;
+    _startTime = null;
+    _totalDistance = 0;
+    _notifyListeners();
   }
 
   /// Stops recording and returns the recorded route
