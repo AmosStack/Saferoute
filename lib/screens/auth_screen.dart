@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_models.dart';
 import '../l10n/app_strings.dart';
 import '../services/auth_service.dart';
+import '../widgets/modern_surface.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({
@@ -127,9 +128,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 padding: const EdgeInsets.all(20),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 480),
-                  child: Card(
-                    elevation: 3,
-                    surfaceTintColor: scheme.surface,
+                  child: HoverSurface(
+                    borderRadius: 28,
+                    padding: EdgeInsets.zero,
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Form(
@@ -138,6 +139,12 @@ class _AuthScreenState extends State<AuthScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            GreenSectionHeader(
+                              title: _isRegisterMode ? strings.createAccount : strings.welcomeBack,
+                              subtitle: _isRegisterMode ? strings.registerPrompt : strings.loginPrompt,
+                              trailing: const Icon(Icons.safety_check_rounded, color: Colors.white),
+                            ),
+                            const SizedBox(height: 16),
                             Row(
                               children: [
                                 Expanded(
@@ -162,23 +169,6 @@ class _AuthScreenState extends State<AuthScreen> {
                               ],
                             ),
                             const SizedBox(height: 18),
-                            Text(
-                              _isRegisterMode
-                                  ? strings.createAccount
-                                  : strings.welcomeBack,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _isRegisterMode
-                                  ? strings.registerPrompt
-                                  : strings.loginPrompt,
-                              style: TextStyle(color: scheme.tertiary),
-                            ),
-                            const SizedBox(height: 20),
                             if (_isRegisterMode) ...[
                               TextFormField(
                                 controller: _nameController,
@@ -220,8 +210,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   prefixIcon: Icon(Icons.phone_outlined),
                                 ).copyWith(labelText: strings.phoneNumber),
                                 validator: (value) {
-                                  if (value == null ||
-                                      value.trim().length < 7) {
+                                  if (value == null || value.trim().length < 7) {
                                     return strings.enterValidPhone;
                                   }
                                   return null;
@@ -246,9 +235,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             FilledButton(
                               onPressed: _isSubmitting ? null : _submit,
                               child: Text(
-                                _isRegisterMode
-                                    ? strings.register
-                                    : strings.logIn,
+                                _isRegisterMode ? strings.register : strings.logIn,
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -261,9 +248,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                       });
                                     },
                               child: Text(
-                                _isRegisterMode
-                                    ? strings.alreadyHaveAccount
-                                    : strings.needAccount,
+                                _isRegisterMode ? strings.alreadyHaveAccount : strings.needAccount,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -271,9 +256,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               children: [
                                 const Expanded(child: Divider()),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
                                   child: Text(
                                     strings.or,
                                     style: TextStyle(color: scheme.tertiary),
@@ -284,9 +267,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
-                              onPressed: _isSubmitting
-                                  ? null
-                                  : _continueWithGoogle,
+                              onPressed: _isSubmitting ? null : _continueWithGoogle,
                               icon: const _SocialMark(
                                 text: 'G',
                                 color: Color(0xFF1A73E8),
@@ -295,9 +276,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             const SizedBox(height: 10),
                             OutlinedButton.icon(
-                              onPressed: _isSubmitting
-                                  ? null
-                                  : _continueWithFacebook,
+                              onPressed: _isSubmitting ? null : _continueWithFacebook,
                               icon: const _SocialMark(
                                 text: 'f',
                                 color: Color(0xFF1877F2),
