@@ -269,23 +269,11 @@ def _complaint_map_rows(limit: int = 100):
         with connection.cursor() as cursor:
                 cursor.execute(
                         """
-                        WITH complaint_points AS (
+                        WITH incident_points AS (
                             SELECT
                                 location_id,
-                                'safety_report' AS complaint_type,
+                                incident_type,
                                 description,
-                                severity,
-                                created_at
-                            FROM saferoute.safety_reports
-                            WHERE location_id IS NOT NULL
-
-                            UNION ALL
-
-                            SELECT
-                                location_id,
-                                'incident' AS complaint_type,
-                                description,
-                                NULL AS severity,
                                 created_at
                             FROM saferoute.incidents
                             WHERE location_id IS NOT NULL
@@ -296,13 +284,17 @@ def _complaint_map_rows(limit: int = 100):
                             l.latitude,
                             l.longitude,
                             COUNT(*) AS complaint_count,
-                            COUNT(*) FILTER (WHERE complaint_type = 'safety_report') AS safety_reports,
-                            COUNT(*) FILTER (WHERE complaint_type = 'incident') AS incidents,
-                            MAX(cp.created_at) AS latest_created_at,
+                            COUNT(*) FILTER (
+                                WHERE COALESCE(ip.incident_type, '') !~* '^sos$'
+                            ) AS reported_incidents,
+                            COUNT(*) FILTER (
+                                WHERE COALESCE(ip.incident_type, '') ~* '^sos$'
+                            ) AS sos_sent,
+                            MAX(ip.created_at) AS latest_created_at,
                             MAX(description) AS sample_description,
-                            MAX(severity) AS max_severity
-                        FROM complaint_points cp
-                        JOIN saferoute.locations l ON l.id = cp.location_id
+                            MAX(ip.incident_type) AS sample_incident_type
+                        FROM incident_points ip
+                        JOIN saferoute.locations l ON l.id = ip.location_id
                         GROUP BY l.id, l.name, l.latitude, l.longitude
                         ORDER BY complaint_count DESC, latest_created_at DESC
                         LIMIT %s
