@@ -65,8 +65,20 @@
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map);
 
-  const points = (route.coordinates || [])
-    .map((point) => [Number(point.lat), Number(point.lng)])
+  let coordinates = route.coordinates || [];
+  if (typeof coordinates === 'string') {
+    try {
+      coordinates = JSON.parse(coordinates);
+    } catch (error) {
+      coordinates = [];
+    }
+  }
+
+  const points = (Array.isArray(coordinates) ? coordinates : [])
+    .map((point) => [
+      Number(point.lat ?? point.latitude),
+      Number(point.lng ?? point.longitude),
+    ])
     .filter((point) => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
 
   if (points.length) {
