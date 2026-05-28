@@ -25,7 +25,7 @@
 <section class="card" style="margin-top:16px;">
   <div class="section-title">
     <h2>Route and complaint map</h2>
-    <span class="subtle">Routes are drawn as polylines. Complaints and incidents are pinned to the reported location.</span>
+    <span class="subtle">Routes are drawn as polylines. Incident reports and SOS sends are pinned to the reported location.</span>
   </div>
   <div class="map-shell">
     <div id="overview-map" class="map-canvas"></div>
@@ -77,18 +77,18 @@
 
 <section class="card" style="margin-top:16px;">
   <div class="section-title">
-    <h2>Complaint hot spots</h2>
-    <span class="subtle">Grouped from safety reports and incidents with a location attached.</span>
+    <h2>Incident hot spots</h2>
+    <span class="subtle">Grouped from reported incidents and SOS sends with a location attached.</span>
   </div>
   <table>
-    <thead><tr><th>Location</th><th>Complaints</th><th>Safety reports</th><th>Incidents</th><th>Latest report</th></tr></thead>
+    <thead><tr><th>Location</th><th>Total</th><th>Reported incidents</th><th>SOS sent</th><th>Latest report</th></tr></thead>
     <tbody>
       {% for complaint in complaint_map_data %}
       <tr>
         <td>{{ complaint.location_name }}</td>
         <td>{{ complaint.complaint_count }}</td>
-        <td>{{ complaint.safety_reports }}</td>
-        <td>{{ complaint.incidents }}</td>
+        <td>{{ complaint.reported_incidents }}</td>
+        <td>{{ complaint.sos_sent }}</td>
         <td>{{ complaint.sample_description|default:"-" }}</td>
       </tr>
       {% empty %}
@@ -179,9 +179,9 @@
     }).addTo(complaintLayer);
     marker.bindPopup(
       `<strong>${complaint.location_name}</strong><br>` +
-      `Complaints: ${complaint.complaint_count}<br>` +
-      `Safety reports: ${complaint.safety_reports}<br>` +
-      `Incidents: ${complaint.incidents}<br>` +
+      `Total: ${complaint.complaint_count}<br>` +
+      `Reported incidents: ${complaint.reported_incidents}<br>` +
+      `SOS sent: ${complaint.sos_sent}<br>` +
       `${complaint.sample_description || ''}`
     );
     bounds.push([lat, lng]);
