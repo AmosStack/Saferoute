@@ -526,7 +526,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                               ),
                             );
                           },
-                    child: const Text('Start Recording'),
+                    child: const Text('Start'),
                   ),
                 ),
               ],
