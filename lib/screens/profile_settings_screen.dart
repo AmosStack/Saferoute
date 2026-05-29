@@ -12,11 +12,17 @@ class ProfileSettingsScreen extends StatefulWidget {
     required this.user,
     required this.localeCode,
     required this.onLocaleChanged,
+    required this.themeMode,
+    required this.onThemeModeChanged,
+    this.onSignOut,
   });
 
   final AuthUser? user;
   final String localeCode;
   final ValueChanged<String> onLocaleChanged;
+  final ThemeMode themeMode;
+  final Future<void> Function(ThemeMode) onThemeModeChanged;
+  final VoidCallback? onSignOut;
 
   @override
   State<ProfileSettingsScreen> createState() => _ProfileSettingsScreenState();
@@ -33,6 +39,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   UserProfileDraft? _profile;
   List<TrustedContact> _contacts = const <TrustedContact>[];
   String _localeCode = 'en';
+  ThemeMode _themeMode = ThemeMode.system;
 
   @override
   void initState() {
@@ -54,6 +61,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       _profile = profile;
       _contacts = contacts;
       _localeCode = localeCode;
+      _themeMode = widget.themeMode;
       _nameController.text = profile.displayName;
       _emailController.text = profile.email;
       _phoneController.text = profile.phone;
@@ -110,6 +118,35 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       _localeCode = code;
     });
     widget.onLocaleChanged(code);
+  }
+
+  Future<void> _toggleLocale() async {
+    await _setLocale(_localeCode == 'en' ? 'sw' : 'en');
+  }
+
+  ThemeMode _nextThemeMode(ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.system => ThemeMode.light,
+      ThemeMode.light => ThemeMode.dark,
+      ThemeMode.dark => ThemeMode.system,
+    };
+  }
+
+  String _themeLabel(AppStrings strings, ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.system => strings.systemTheme,
+      ThemeMode.light => strings.lightTheme,
+      ThemeMode.dark => strings.darkTheme,
+    };
+  }
+
+  Future<void> _cycleThemeMode() async {
+    final nextMode = _nextThemeMode(_themeMode);
+    await widget.onThemeModeChanged(nextMode);
+    if (!mounted) return;
+    setState(() {
+      _themeMode = nextMode;
+    });
   }
 
   Future<void> _editContact({TrustedContact? existing}) async {
@@ -249,23 +286,29 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         _SectionCard(
           title: strings.appSettings,
           subtitle: strings.appSettingsSubtitle,
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: ChoiceChip(
-                  label: Text(strings.english),
-                  selected: _localeCode == 'en',
-                  onSelected: (_) => _setLocale('en'),
-                ),
+              FilledButton.icon(
+                onPressed: _toggleLocale,
+                icon: const Icon(Icons.language),
+                label: Text(_localeCode == 'en' ? strings.useSwahili : strings.useEnglish),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ChoiceChip(
-                  label: Text(strings.swahili),
-                  selected: _localeCode == 'sw',
-                  onSelected: (_) => _setLocale('sw'),
-                ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _cycleThemeMode,
+                icon: const Icon(Icons.brightness_6_outlined),
+                label: Text('${strings.themeMode}: ${_themeLabel(strings, _themeMode)}'),
               ),
+              if (widget.onSignOut != null) ...[
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: widget.onSignOut,
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+                  icon: const Icon(Icons.logout),
+                  label: Text(strings.signOut),
+                ),
+              ],
             ],
           ),
         ),
