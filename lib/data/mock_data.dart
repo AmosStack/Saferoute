@@ -39,7 +39,7 @@ const safeRouteRecommendations = <SafeRouteRecommendation>[
     summary: 'Uses the main boulevard, a staffed interchange, and the busiest well-lit stop sequence.',
     highlights: [
       'Street lighting stays consistent until arrival.',
-      'Community spotters report frequent passenger flow.',
+      'Local spotters report frequent passenger flow.',
       'One short transfer keeps wait time low.',
     ],
     cautions: [
@@ -147,7 +147,7 @@ const emergencyContacts = <EmergencyContact>[
   EmergencyContact(
     label: 'Women transport desk',
     number: '+1 555 0142',
-    note: 'Route assistance, reporting, and community referral support.',
+    note: 'Route assistance, reporting, and local referral support.',
     icon: Icons.support_agent_outlined,
   ),
   EmergencyContact(
