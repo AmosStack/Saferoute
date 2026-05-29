@@ -41,8 +41,13 @@ class _HoverSurfaceState extends State<HoverSurface> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(widget.borderRadius);
     final shadowColor = widget.shadowColor ?? Colors.black.withValues(alpha: 0.08);
+    final backgroundColor = widget.gradient == null
+      ? (isDark ? scheme.surfaceContainerHighest : widget.backgroundColor)
+      : widget.backgroundColor;
 
     final surface = AnimatedScale(
       duration: widget.duration,
@@ -58,9 +63,11 @@ class _HoverSurfaceState extends State<HoverSurface> {
           alignment: widget.alignment,
           decoration: BoxDecoration(
             gradient: widget.gradient,
-            color: widget.gradient == null ? widget.backgroundColor : null,
+            color: widget.gradient == null ? backgroundColor : null,
             borderRadius: radius,
-            border: Border.all(color: widget.borderColor ?? Colors.black.withValues(alpha: 0.05)),
+            border: Border.all(
+              color: widget.borderColor ?? (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)),
+            ),
             boxShadow: [
               BoxShadow(
                 color: shadowColor.withValues(alpha: _hovered ? 0.18 : 0.08),
