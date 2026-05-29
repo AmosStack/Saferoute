@@ -24,6 +24,23 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
   AuthSession? _session;
   bool _isCheckingSession = true;
   String _localeCode = 'en';
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode _themeModeFromCode(String code) {
+    return switch (code) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+
+  String _themeModeCode(ThemeMode mode) {
+    return switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
+      ThemeMode.system => 'system',
+    };
+  }
 
   @override
   void initState() {
@@ -37,12 +54,14 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
         Future<void>.delayed(const Duration(seconds: 2)),
         AuthService.instance.getStoredSession(),
         UserSettingsService.loadLocaleCode(),
+        UserSettingsService.loadThemeModeCode(),
       ]);
 
       if (!mounted) return;
       setState(() {
         _session = result[1] as AuthSession?;
         _localeCode = result[2] as String? ?? 'en';
+        _themeMode = _themeModeFromCode(result[3] as String? ?? 'system');
         _isCheckingSession = false;
       });
     } catch (_) {
@@ -50,6 +69,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
       setState(() {
         _session = null;
         _localeCode = 'en';
+        _themeMode = ThemeMode.system;
         _isCheckingSession = false;
       });
     }
@@ -60,6 +80,14 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
     if (!mounted) return;
     setState(() {
       _localeCode = localeCode;
+    });
+  }
+
+  Future<void> _onThemeModeChanged(ThemeMode mode) async {
+    await UserSettingsService.setThemeModeCode(_themeModeCode(mode));
+    if (!mounted) return;
+    setState(() {
+      _themeMode = mode;
     });
   }
 
@@ -82,6 +110,10 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
     final baseScheme = ColorScheme.fromSeed(
       seedColor: _brandGreen,
       brightness: Brightness.light,
+    );
+    final darkScheme = ColorScheme.fromSeed(
+      seedColor: _brandGreen,
+      brightness: Brightness.dark,
     );
     final cardBorder = BorderSide(color: _brandGreen.withValues(alpha: 0.08));
 
@@ -180,6 +212,93 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
           },
         ),
       ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: darkScheme.copyWith(
+          primary: _brandGreen,
+          onPrimary: Colors.white,
+          surface: const Color(0xFF111827),
+          surfaceContainerHighest: const Color(0xFF1F2937),
+          outline: Colors.white.withValues(alpha: 0.12),
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0B1220),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0F172A),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+          surfaceTintColor: Colors.transparent,
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF111827),
+          elevation: 0,
+          surfaceTintColor: const Color(0xFF111827),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          margin: EdgeInsets.zero,
+        ),
+        dividerTheme: DividerThemeData(color: Colors.white.withValues(alpha: 0.08), thickness: 1),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF111827),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          focusedBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+            borderSide: BorderSide(color: _brandGreen, width: 1.6),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: _brandGreen,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: Colors.white),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF0F172A),
+          indicatorColor: _brandGreen.withValues(alpha: 0.2),
+          labelTextStyle: WidgetStatePropertyAll(
+            TextStyle(fontWeight: FontWeight.w700, color: darkScheme.onSurfaceVariant),
+          ),
+        ),
+        chipTheme: ChipThemeData(
+          backgroundColor: const Color(0xFF1F2937),
+          selectedColor: _brandGreen.withValues(alpha: 0.22),
+          secondarySelectedColor: _brandGreen.withValues(alpha: 0.22),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        textTheme: ThemeData.dark().textTheme.apply(
+          bodyColor: Colors.white,
+          displayColor: Colors.white,
+        ),
+      ),
+      themeMode: _themeMode,
       locale: Locale(_localeCode),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('en'), Locale('sw')],
@@ -188,7 +307,6 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
           : (_session == null
                 ? AuthScreen(
                     localeCode: _localeCode,
-                    onLocaleChanged: _onLocaleChanged,
                     onAuthenticated: _onAuthenticated,
                   )
                 : HomeScreen(
@@ -196,6 +314,8 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
                     onSignOut: _onSignOut,
                     localeCode: _localeCode,
                     onLocaleChanged: _onLocaleChanged,
+                    themeMode: _themeMode,
+                    onThemeModeChanged: _onThemeModeChanged,
                   )),
     );
   }
