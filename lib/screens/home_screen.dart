@@ -15,12 +15,16 @@ class HomeScreen extends StatefulWidget {
     this.onSignOut,
     required this.localeCode,
     required this.onLocaleChanged,
+    required this.themeMode,
+    required this.onThemeModeChanged,
   });
 
   final AuthUser? user;
   final VoidCallback? onSignOut;
   final String localeCode;
   final ValueChanged<String> onLocaleChanged;
+  final ThemeMode themeMode;
+  final Future<void> Function(ThemeMode) onThemeModeChanged;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -88,23 +92,15 @@ class _HomeScreenState extends State<HomeScreen> {
         user: widget.user,
         localeCode: widget.localeCode,
         onLocaleChanged: widget.onLocaleChanged,
+        themeMode: widget.themeMode,
+        onThemeModeChanged: widget.onThemeModeChanged,
+        onSignOut: widget.onSignOut,
       ),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.user == null ? strings.appName : '${strings.appName} - ${widget.user!.name}',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          if (widget.onSignOut != null)
-            IconButton(
-              onPressed: widget.onSignOut,
-              icon: const Icon(Icons.logout_outlined),
-              tooltip: strings.signOut,
-            ),
-        ],
+        title: Text(strings.appName, style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 250),
@@ -129,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: const Icon(Icons.person_outlined),
             selectedIcon: const Icon(Icons.person),
-            label: strings.community,
+            label: strings.account,
           ),
         ],
       ),
@@ -224,6 +220,9 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings(localeCode);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
     return HoverSurface(
       padding: const EdgeInsets.all(18),
       borderRadius: 26,
@@ -240,12 +239,12 @@ class _HeroCard extends StatelessWidget {
         children: [
           Text(
             user == null ? strings.planTrip : strings.welcomeUser(user!.name),
-            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+            style: TextStyle(color: textColor, fontSize: 24, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
             strings.heroSubtitle,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
+            style: TextStyle(color: mutedTextColor),
           ),
           const SizedBox(height: 14),
           FilledButton(
@@ -277,6 +276,8 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
     return HoverSurface(
       onTap: onTap,
       padding: const EdgeInsets.all(14),
@@ -290,9 +291,9 @@ class _ActionTile extends StatelessWidget {
             child: Icon(icon, color: const Color(0xFF0E7C7B)),
           ),
           const Spacer(),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
           const SizedBox(height: 4),
-          Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis),
+          Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.72) : null)),
         ],
       ),
     );
@@ -307,6 +308,8 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
     return HoverSurface(
       padding: const EdgeInsets.all(14),
       borderRadius: 16,
@@ -314,9 +317,9 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
           const SizedBox(height: 4),
-          Text(subtitle),
+          Text(subtitle, style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.72) : null)),
         ],
       ),
     );
@@ -393,6 +396,9 @@ class _SavedRouteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings(localeCode);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
     return HoverSurface(
       padding: const EdgeInsets.all(14),
       borderRadius: 16,
@@ -405,7 +411,7 @@ class _SavedRouteCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '${route.startLocationName} → ${route.endLocationName}',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(fontWeight: FontWeight.w800, color: textColor),
                 ),
               ),
               _StatusPill(label: route.transportMode),
@@ -414,16 +420,16 @@ class _SavedRouteCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${strings.distance}: ${route.distanceStr} - ${strings.duration}: ${route.durationStr}',
-            style: TextStyle(color: Colors.black.withValues(alpha: 0.65)),
+            style: TextStyle(color: mutedTextColor),
           ),
           const SizedBox(height: 6),
           Text(
             '${strings.saved}: ${route.startTime.toLocal()} - ${route.endTime.toLocal()}',
-            style: TextStyle(color: Colors.black.withValues(alpha: 0.55), fontSize: 12),
+            style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.55), fontSize: 12),
           ),
           if (route.notes != null && route.notes!.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(route.notes!, maxLines: 3, overflow: TextOverflow.ellipsis),
+            Text(route.notes!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: isDark ? Colors.white : null)),
           ],
           const SizedBox(height: 10),
           Row(
@@ -450,6 +456,8 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
     return HoverSurface(
       padding: const EdgeInsets.all(20),
       borderRadius: 16,
@@ -458,9 +466,9 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(icon, size: 34, color: const Color(0xFF274060)),
           const SizedBox(height: 10),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
           const SizedBox(height: 4),
-          Text(subtitle, textAlign: TextAlign.center),
+          Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.72) : null)),
         ],
       ),
     );
@@ -474,13 +482,14 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E7C7B).withValues(alpha: 0.1),
+        color: isDark ? const Color(0xFF0E7C7B).withValues(alpha: 0.22) : const Color(0xFF0E7C7B).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
     );
   }
 }
