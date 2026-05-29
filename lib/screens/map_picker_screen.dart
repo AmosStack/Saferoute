@@ -538,6 +538,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Widget _buildTransportCardGrid() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.94);
+    final textColor = isDark ? Colors.white : Colors.black;
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -559,10 +562,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             borderRadius: BorderRadius.circular(14),
             child: Container(
               decoration: BoxDecoration(
-                color: _selectedTransportMode == card.mode ? const Color(0xFF0E7C7B).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.94),
+                color: _selectedTransportMode == card.mode ? const Color(0xFF0E7C7B).withValues(alpha: 0.22) : surfaceColor,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: _selectedTransportMode == card.mode ? const Color(0xFF0E7C7B) : Colors.black.withValues(alpha: 0.06),
+                  color: _selectedTransportMode == card.mode ? const Color(0xFF0E7C7B) : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -577,7 +580,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   Expanded(
                     child: Text(
                       card.label,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(fontWeight: FontWeight.w800, color: textColor),
                     ),
                   ),
                 ],
@@ -589,11 +592,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Widget _buildTopPanel(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Material(
           elevation: 4,
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -601,7 +608,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Choose transport mode first or later', style: TextStyle(fontWeight: FontWeight.w800)),
+                Text('Choose transport mode first or later', style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
                 const SizedBox(height: 10),
                 _buildTransportCardGrid(),
               ],
@@ -611,6 +618,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         const SizedBox(height: 10),
         Material(
           elevation: 4,
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(8),
           child: TextField(
             controller: _originController,
@@ -628,6 +636,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         const SizedBox(height: 8),
         Material(
           elevation: 4,
+          color: surfaceColor,
           borderRadius: BorderRadius.circular(8),
           child: TextField(
             controller: _destinationController,
@@ -647,21 +656,22 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Widget _buildStatusPill() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       elevation: 2,
       borderRadius: BorderRadius.circular(999),
-      color: Colors.white.withValues(alpha: 0.92),
+      color: isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.92),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: _isLoadingSuggestions
-            ? const SizedBox(
+            ? SizedBox(
                 width: 150,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                    SizedBox(width: 8),
-                    Text('Building routes...', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 8),
+                    Text('Building routes...', style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black)),
                   ],
                 ),
               )
@@ -673,7 +683,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         : _routeOptions.isNotEmpty
                             ? 'Choose one of ${_routeOptions.length} route options'
                             : 'Ready to build route options',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black),
               ),
       ),
     );
@@ -682,17 +692,21 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   Widget _buildRouteList() {
     if (_routeOptions.isEmpty) return const SizedBox.shrink();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.96);
+    final textColor = isDark ? Colors.white : Colors.black;
+
     return Material(
       elevation: 3,
       borderRadius: BorderRadius.circular(10),
-      color: Colors.white.withValues(alpha: 0.96),
+      color: surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Route Suggestions', style: TextStyle(fontWeight: FontWeight.w700)),
+            Text('Route Suggestions', style: TextStyle(fontWeight: FontWeight.w700, color: textColor)),
             const SizedBox(height: 8),
             for (var i = 0; i < _routeOptions.length; i++)
               InkWell(
@@ -707,19 +721,19 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _selectedRouteIndex == i ? Colors.blueAccent : Colors.grey.shade300),
+                    border: Border.all(color: _selectedRouteIndex == i ? Colors.blueAccent : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.grey.shade300)),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           '${_routeOptions[i].label}${_bestRouteIndex == i ? ' (Best)' : ''}',
-                          style: TextStyle(fontWeight: _bestRouteIndex == i ? FontWeight.w700 : FontWeight.w500),
+                          style: TextStyle(fontWeight: _bestRouteIndex == i ? FontWeight.w700 : FontWeight.w500, color: textColor),
                         ),
                       ),
                       Text(
                         '${_formatDistance(_routeOptions[i].totalDistance)} • ${_formatDuration(_routeOptions[i].totalDuration)}',
-                        style: const TextStyle(fontSize: 12),
+                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white.withValues(alpha: 0.72) : null),
                       ),
                     ],
                   ),
