@@ -37,7 +37,9 @@ class AppStrings {
   String get signOut => isSwahili ? 'Toka' : 'Sign out';
   String get home => isSwahili ? 'Nyumbani' : 'Home';
   String get routes => isSwahili ? 'Njia' : 'Routes';
-  String get community => isSwahili ? 'Jamii' : 'Community';
+    String get account => isSwahili ? 'Akaunti' : 'Account';
+    @Deprecated('Use account')
+    String get community => account;
   String welcomeUser(String name) => isSwahili ? 'Karibu, $name' : 'Welcome, $name';
   String get planTrip => isSwahili ? 'Panga safari yako ijayo' : 'Plan your next trip';
   String get heroSubtitle => isSwahili
@@ -88,10 +90,18 @@ class AppStrings {
   String get profileSaved => isSwahili ? 'Wasifu umehifadhiwa' : 'Profile saved';
   String get appSettings => isSwahili ? 'Mipangilio ya programu' : 'App settings';
   String get appSettingsSubtitle => isSwahili
-      ? 'Badili kati ya Kiingereza na Kiswahili.'
-      : 'Switch between English and Swahili.';
+      ? 'Badili lugha, mwonekano wa mandhari, au toka kwenye akaunti.'
+      : 'Switch language, theme mode, or sign out of your account.';
   String get english => isSwahili ? 'Kiingereza' : 'English';
   String get swahili => isSwahili ? 'Kiswahili' : 'Swahili';
+    String get toggleLanguage => isSwahili ? 'Badili lugha' : 'Toggle language';
+    String get useEnglish => isSwahili ? 'Weka Kiingereza' : 'Switch to English';
+    String get useSwahili => isSwahili ? 'Weka Kiswahili' : 'Switch to Swahili';
+    String get themeMode => isSwahili ? 'Mandhari' : 'Theme mode';
+    String get systemTheme => isSwahili ? 'Mandhari ya kifaa' : 'Device theme';
+    String get lightTheme => isSwahili ? 'Mandhari nyeupe' : 'Light theme';
+    String get darkTheme => isSwahili ? 'Mandhari nyeusi' : 'Dark theme';
+    String get cycleThemeMode => isSwahili ? 'Badili mandhari' : 'Change theme';
   String get noTrustedPeople => isSwahili
       ? 'Hakuna watu wa kuaminika walioongezwa bado.'
       : 'No trusted people added yet.';
