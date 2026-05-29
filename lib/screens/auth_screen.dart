@@ -9,12 +9,10 @@ class AuthScreen extends StatefulWidget {
   const AuthScreen({
     super.key,
     required this.localeCode,
-    required this.onLocaleChanged,
     required this.onAuthenticated,
   });
 
   final String localeCode;
-  final ValueChanged<String> onLocaleChanged;
   final ValueChanged<AuthSession> onAuthenticated;
 
   @override
@@ -143,30 +141,6 @@ class _AuthScreenState extends State<AuthScreen> {
                               title: _isRegisterMode ? strings.createAccount : strings.welcomeBack,
                               subtitle: _isRegisterMode ? strings.registerPrompt : strings.loginPrompt,
                               trailing: const Icon(Icons.safety_check_rounded, color: Colors.white),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ChoiceChip(
-                                    label: Text(strings.english),
-                                    selected: widget.localeCode == 'en',
-                                    onSelected: _isSubmitting
-                                        ? null
-                                        : (_) => widget.onLocaleChanged('en'),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ChoiceChip(
-                                    label: Text(strings.swahili),
-                                    selected: widget.localeCode == 'sw',
-                                    onSelected: _isSubmitting
-                                        ? null
-                                        : (_) => widget.onLocaleChanged('sw'),
-                                  ),
-                                ),
-                              ],
                             ),
                             const SizedBox(height: 18),
                             if (_isRegisterMode) ...[
