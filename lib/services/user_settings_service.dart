@@ -11,6 +11,7 @@ class UserSettingsService {
   static const String _profileKey = 'safe_route_profile';
   static const String _contactsKey = 'safe_route_trusted_contacts';
   static const String _localeKey = 'safe_route_locale';
+  static const String _themeModeKey = 'safe_route_theme_mode';
 
   static Future<UserProfileDraft> loadProfile({AuthUser? fallbackUser}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -95,5 +96,24 @@ class UserSettingsService {
   static Future<void> setLocaleCode(String localeCode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_localeKey, localeCode == 'sw' ? 'sw' : 'en');
+  }
+
+  static Future<String> loadThemeModeCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_themeModeKey);
+    if (raw == 'light' || raw == 'dark') {
+      return raw!;
+    }
+    return 'system';
+  }
+
+  static Future<void> setThemeModeCode(String modeCode) async {
+    final prefs = await SharedPreferences.getInstance();
+    final normalized = switch (modeCode) {
+      'light' => 'light',
+      'dark' => 'dark',
+      _ => 'system',
+    };
+    await prefs.setString(_themeModeKey, normalized);
   }
 }
