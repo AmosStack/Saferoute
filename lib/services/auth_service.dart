@@ -143,7 +143,8 @@ class AuthService {
 
   Future<AuthSession> signInWithGoogle() async {
     try {
-      final googleAccount = await _googleSignIn.signIn();
+      GoogleSignInAccount? googleAccount = await _googleSignIn.signInSilently();
+      googleAccount ??= await _googleSignIn.signIn();
       if (googleAccount == null) {
         throw const AuthException('Google sign-in was cancelled.');
       }
@@ -211,6 +212,12 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {
+      // Ignore Google sign-out failures and always clear the local session.
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
   }
