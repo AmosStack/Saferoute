@@ -132,6 +132,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final isDark = theme.brightness == Brightness.dark;
+        final surfaceColor = isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white;
+        final titleColor = isDark ? Colors.white : Colors.black;
+        final subtitleColor = isDark ? Colors.white.withValues(alpha: 0.78) : Colors.black.withValues(alpha: 0.7);
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -139,22 +144,28 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Send SOS', style: Theme.of(context).textTheme.titleLarge),
+                Text('Send SOS', style: theme.textTheme.titleLarge?.copyWith(color: titleColor)),
                 const SizedBox(height: 8),
-                const Text('Choose a trusted person or emergency contact to receive your location message.'),
+                Text(
+                  'Choose a trusted person or emergency contact to receive your location message.',
+                  style: TextStyle(color: subtitleColor),
+                ),
                 const SizedBox(height: 12),
                 for (final recipient in recipients)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
-                      tileColor: Colors.white,
+                      tileColor: surfaceColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       leading: const CircleAvatar(
                         backgroundColor: Color(0xFF0E7C7B),
                         child: Icon(Icons.message, color: Colors.white),
                       ),
-                      title: Text(recipient.name),
-                      subtitle: Text('${recipient.phone}\n${recipient.note}'),
+                      title: Text(recipient.name, style: TextStyle(color: titleColor)),
+                      subtitle: Text(
+                        '${recipient.phone}\n${recipient.note}',
+                        style: TextStyle(color: subtitleColor),
+                      ),
                       isThreeLine: true,
                       onTap: () async {
                         Navigator.of(sheetContext).pop();
@@ -673,6 +684,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
     final coords = _recorderService.coordinates;
     final currentPoint = _recorderService.currentLatLng;
     final isRecording = _recorderService.isRecording;
@@ -737,6 +751,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
             right: 12,
             child: Material(
               elevation: 4,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -746,19 +761,19 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                   children: [
                     Text(
                       '${widget.startLocationName} → ${widget.endLocationName}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textColor),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Mode: ${widget.transportMode}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: mutedTextColor),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _currentLocationName == null
                           ? 'Live location tracking active'
                           : 'Live: $_currentLocationName',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: mutedTextColor),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -767,22 +782,22 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Distance', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text('Distance', style: TextStyle(fontSize: 12, color: mutedTextColor)),
                             Text(
                               _recorderService.totalDistance < 1000
                                   ? '${_recorderService.totalDistance.toStringAsFixed(0)} m'
                                   : '${(_recorderService.totalDistance / 1000).toStringAsFixed(2)} km',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
                             ),
                           ],
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            const Text('Points Recorded', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text('Points Recorded', style: TextStyle(fontSize: 12, color: mutedTextColor)),
                             Text(
                               '${coords.length}',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
                             ),
                           ],
                         ),
