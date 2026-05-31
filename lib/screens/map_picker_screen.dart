@@ -104,11 +104,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return hrs == 0 ? '$mins min' : '${hrs}h ${remMins}m';
   }
 
-  Color _optionColor(int index) {
-    if (_selectedRouteIndex == index) return Colors.blueAccent;
-    if (_bestRouteIndex == index) return const Color(0xFF0E7C7B);
-    return Colors.grey.shade500;
-  }
+  
 
   double _scoreRoute({
     required List<PathSegment> segments,
@@ -813,8 +809,12 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               gmaps.Polyline(
                 polylineId: gmaps.PolylineId('option_$index'),
                 points: _routeOptions[index].points.map(_toGoogleLatLng).toList(),
-                width: _selectedRouteIndex == index ? 5 : 3,
-                color: _optionColor(index).withValues(alpha: _selectedRouteIndex == index ? 1.0 : 0.7),
+                width: (_selectedRouteIndex == index || _bestRouteIndex == index) ? 5 : 3,
+                color: _selectedRouteIndex == index
+                    ? Colors.blueAccent
+                    : (_bestRouteIndex == index
+                        ? const Color(0xFF0E7C7B).withValues(alpha: 0.95)
+                        : Colors.grey.shade500.withValues(alpha: 0.7)),
               ),
           },
         ),
