@@ -43,16 +43,31 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   bool _isIncidentDialogOpen = false;
   int _arrivalHitCount = 0;
   int _selectedRating = 0;
+  bool _consentAccepted = false;
   String? _currentLocationName;
   ll.LatLng? _currentReportedPoint;
   String? _currentReportedLocationName;
   ll.LatLng? _lastLocationNameLookupPoint;
   ll.LatLng? _lastFollowedPoint;
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _fareController = TextEditingController();
+  final TextEditingController _waitingTimeController = TextEditingController();
+  final TextEditingController _transferCountController = TextEditingController();
   final TextEditingController _incidentDescriptionController = TextEditingController();
   String _incidentType = 'Unsafe road condition';
+  final Map<String, int> _safetyScores = <String, int>{};
 
   static const String _sosIncidentType = 'SOS';
+
+  static const List<String> _safetyQuestions = <String>[
+    'Lighting condition',
+    'Crowd density',
+    'Presence of harassment',
+    'Road condition',
+    'Police/security visibility',
+    'Driver behavior',
+    'Walking safety',
+  ];
 
   static const List<String> _incidentTypes = <String>[
     'Unsafe road condition',
@@ -262,6 +277,29 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     }
   }
 
+  double? _parseDoubleField(TextEditingController controller) {
+    final value = controller.text.trim();
+    if (value.isEmpty) return null;
+    return double.tryParse(value);
+  }
+
+  int? _parseIntField(TextEditingController controller) {
+    final value = controller.text.trim();
+    if (value.isEmpty) return null;
+    return int.tryParse(value);
+  }
+
+  Map<String, int> _currentSafetyAssessment() {
+    final assessment = <String, int>{};
+    for (final question in _safetyQuestions) {
+      final score = _safetyScores[question];
+      if (score != null) {
+        assessment[question] = score;
+      }
+    }
+    return assessment;
+  }
+
   Future<void> _startRecording() async {
     await _recorderService.startRecording(widget.startPoint);
     if (!mounted) return;
@@ -308,6 +346,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       transportMode: widget.transportMode,
       rating: _selectedRating,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+      fareCost: _parseDoubleField(_fareController),
+      waitingTimeMinutes: _parseIntField(_waitingTimeController),
+      transferCount: _parseIntField(_transferCountController),
+      safetyAssessment: _currentSafetyAssessment(),
+      consentAccepted: _consentAccepted,
     );
 
     if (widget.userId != null) {
@@ -387,17 +430,18 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
         return StatefulBuilder(
           builder: (dialogContext, dialogSetState) {
             return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 8,
-                  bottom: MediaQuery.of(dialogContext).viewInsets.bottom + 16,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 8,
+                    bottom: MediaQuery.of(dialogContext).viewInsets.bottom + 16,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     Text(
                       'Arrival detected',
                       style: Theme.of(context).textTheme.titleLarge,
@@ -414,10 +458,81 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'How safe was the route? Describe any unsafe areas or route issues.',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      'Travel diary details',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _fareController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Fare cost',
+                              prefixText: 'TZS ',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _waitingTimeController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Waiting time',
+                              suffixText: 'min',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
+                    TextField(
+                      controller: _transferCountController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Number of transfers',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Safety questionnaire',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._safetyQuestions.map(
+                      (question) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: DropdownButtonFormField<int>(
+                          value: _safetyScores[question],
+                          items: List.generate(
+                            5,
+                            (index) => DropdownMenuItem<int>(
+                              value: index + 1,
+                              child: Text('${index + 1}'),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            dialogSetState(() {
+                              _safetyScores[question] = value;
+                            });
+                            setState(() {
+                              _safetyScores[question] = value;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            labelText: question,
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(
@@ -446,6 +561,21 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 4,
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _consentAccepted,
+                      onChanged: (value) {
+                        final accepted = value ?? false;
+                        dialogSetState(() {
+                          _consentAccepted = accepted;
+                        });
+                        setState(() {
+                          _consentAccepted = accepted;
+                        });
+                      },
+                      title: const Text('I consent to share this travel diary for research and safety analysis.'),
+                      controlAffinity: ListTileControlAffinity.leading,
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -476,7 +606,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                         ),
                       ],
                     ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -677,6 +808,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     _recorderService.removeListener(_onLocationUpdate);
     _recorderService.dispose();
     _notesController.dispose();
+    _fareController.dispose();
+    _waitingTimeController.dispose();
+    _transferCountController.dispose();
     _incidentDescriptionController.dispose();
     _mapController?.dispose();
     super.dispose();
