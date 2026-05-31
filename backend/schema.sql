@@ -223,6 +223,12 @@ CREATE TABLE IF NOT EXISTS saferoute.admins (
     username VARCHAR(120) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(32) NOT NULL DEFAULT 'super_admin',
+    area_level VARCHAR(32),
+    area_name VARCHAR(120),
+    boundary_min_lat DECIMAL(10,8),
+    boundary_max_lat DECIMAL(10,8),
+    boundary_min_lng DECIMAL(11,8),
+    boundary_max_lng DECIMAL(11,8),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
