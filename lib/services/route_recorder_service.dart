@@ -129,6 +129,11 @@ class RouteRecorderService {
     required String transportMode,
     int? rating,
     String? notes,
+    double? fareCost,
+    int? waitingTimeMinutes,
+    int? transferCount,
+    Map<String, int> safetyAssessment = const <String, int>{},
+    bool consentAccepted = false,
   }) async {
     _positionStream?.cancel();
     _positionStream = null;
@@ -157,6 +162,11 @@ class RouteRecorderService {
       distance: _totalDistance,
       rating: rating,
       notes: notes,
+      fareCost: fareCost,
+      waitingTimeMinutes: waitingTimeMinutes,
+      transferCount: transferCount,
+      safetyAssessment: safetyAssessment,
+      consentAccepted: consentAccepted,
     );
   }
 
