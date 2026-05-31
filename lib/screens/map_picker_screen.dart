@@ -68,10 +68,11 @@ class _RouteOption {
 }
 
 class MapPickerScreen extends StatefulWidget {
-  const MapPickerScreen({super.key, this.userId, this.embedded = false});
+  const MapPickerScreen({super.key, this.userId, this.embedded = false, this.initialTransportMode});
 
   final int? userId;
   final bool embedded;
+  final String? initialTransportMode;
 
   @override
   State<MapPickerScreen> createState() => _MapPickerScreenState();
@@ -851,6 +852,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTransportMode = widget.initialTransportMode;
     _bootstrapLocation();
   }
 
