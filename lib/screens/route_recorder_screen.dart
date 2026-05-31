@@ -20,6 +20,9 @@ class RouteRecorderScreen extends StatefulWidget {
     required this.startLocationName,
     required this.endLocationName,
     required this.transportMode,
+    this.plannedRoutePoints = const <ll.LatLng>[],
+    this.plannedRouteLabel,
+    this.plannedRouteSafetyScore,
     this.userId,
   });
 
@@ -28,6 +31,9 @@ class RouteRecorderScreen extends StatefulWidget {
   final String startLocationName;
   final String endLocationName;
   final String transportMode;
+  final List<ll.LatLng> plannedRoutePoints;
+  final String? plannedRouteLabel;
+  final double? plannedRouteSafetyScore;
   final int? userId;
 
   @override
@@ -508,7 +514,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                       (question) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: DropdownButtonFormField<int>(
-                          value: _safetyScores[question],
+                          initialValue: _safetyScores[question],
                           items: List.generate(
                             5,
                             (index) => DropdownMenuItem<int>(
@@ -870,11 +876,18 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                 ),
             },
             polylines: {
+              if (widget.plannedRoutePoints.length > 1)
+                gmaps.Polyline(
+                  polylineId: const gmaps.PolylineId('planned_route'),
+                  points: widget.plannedRoutePoints.map(_toGoogleLatLng).toList(),
+                  width: 5,
+                  color: const Color(0xFF0E7C7B).withValues(alpha: 0.45),
+                ),
               if (coords.length > 1)
                 gmaps.Polyline(
                   polylineId: const gmaps.PolylineId('recorded_route'),
                   points: coords.map(_toGoogleLatLng).toList(),
-                  width: 4,
+                  width: 5,
                   color: Colors.blueAccent,
                 ),
             },
@@ -902,6 +915,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                       'Mode: ${widget.transportMode}',
                       style: TextStyle(fontSize: 12, color: mutedTextColor),
                     ),
+                    if (widget.plannedRouteLabel != null)
+                      Text(
+                        'Planned route: ${widget.plannedRouteLabel}${widget.plannedRouteSafetyScore == null ? '' : ' • Safety ${widget.plannedRouteSafetyScore!.toStringAsFixed(0)} / 100'}',
+                        style: TextStyle(fontSize: 12, color: mutedTextColor),
+                      ),
                     const SizedBox(height: 4),
                     Text(
                       _currentLocationName == null
