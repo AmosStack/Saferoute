@@ -222,8 +222,10 @@ def record_route(request: HttpRequest) -> JsonResponse:
                 INSERT INTO saferoute.recorded_routes
                   (id, user_id, start_location_name, end_location_name, transport_mode,
                    start_latitude, start_longitude, end_latitude, end_longitude, coordinates,
-                   distance_meters, duration_seconds, rating, notes, started_at, ended_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)
+                   distance_meters, duration_seconds, rating, notes, fare_cost,
+                   waiting_time_minutes, transfer_count, safety_assessment, consent_accepted,
+                   started_at, ended_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
                 """,
                 [
                     route_id,
@@ -240,6 +242,11 @@ def record_route(request: HttpRequest) -> JsonResponse:
                     payload.get("duration"),
                     payload.get("rating"),
                     payload.get("notes"),
+                    payload.get("fareCost"),
+                    payload.get("waitingTimeMinutes"),
+                    payload.get("transferCount"),
+                    json.dumps(payload.get("safetyAssessment") or {}),
+                    bool(payload.get("consentAccepted", False)),
                     payload.get("startedAt"),
                     payload.get("endedAt"),
                 ],
@@ -260,6 +267,7 @@ def get_user_routes(request: HttpRequest, user_id: int) -> JsonResponse:
                 SELECT id, start_location_name, end_location_name, transport_mode,
                        start_latitude, start_longitude, end_latitude, end_longitude,
                        coordinates, distance_meters, duration_seconds, rating, notes,
+                       fare_cost, waiting_time_minutes, transfer_count, safety_assessment, consent_accepted,
                        started_at, ended_at, created_at
                 FROM saferoute.recorded_routes
                 WHERE user_id = %s
@@ -295,11 +303,16 @@ def get_user_routes(request: HttpRequest, user_id: int) -> JsonResponse:
                     "duration": row[10],
                     "rating": row[11],
                     "notes": row[12],
-                    "startedAt": str(row[13]),
-                    "endedAt": str(row[14]),
-                    "startTime": str(row[13]),
-                    "endTime": str(row[14]),
-                    "createdAt": str(row[15]),
+                    "fareCost": _to_json_value(row[13]),
+                    "waitingTimeMinutes": row[14],
+                    "transferCount": row[15],
+                    "safetyAssessment": _json_field(row[16]) or {},
+                    "consentAccepted": row[17],
+                    "startedAt": str(row[18]),
+                    "endedAt": str(row[19]),
+                    "startTime": str(row[18]),
+                    "endTime": str(row[19]),
+                    "createdAt": str(row[20]),
                 }
             )
 
