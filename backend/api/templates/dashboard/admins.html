@@ -30,6 +30,29 @@
         {% endfor %}
       </select>
     </label>
+    <label>Area level
+      <select name="area_level">
+        <option value="">Not scoped</option>
+        {% for value, label in area_levels %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Area name
+      <input name="area_name" placeholder="District or ward name">
+    </label>
+    <label>Boundary min latitude
+      <input name="boundary_min_lat" type="number" step="0.00000001" placeholder="e.g. -1.29210">
+    </label>
+    <label>Boundary max latitude
+      <input name="boundary_max_lat" type="number" step="0.00000001" placeholder="e.g. -1.25000">
+    </label>
+    <label>Boundary min longitude
+      <input name="boundary_min_lng" type="number" step="0.00000001" placeholder="e.g. 36.70000">
+    </label>
+    <label>Boundary max longitude
+      <input name="boundary_max_lng" type="number" step="0.00000001" placeholder="e.g. 36.90000">
+    </label>
     <button class="primary" type="submit">Create admin</button>
   </form>
 </section>
@@ -46,13 +69,28 @@
     </form>
   </div>
   <table>
-    <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Created</th><th>Update role</th></tr></thead>
+    <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Area</th><th>Boundary</th><th>Created</th><th>Update role</th></tr></thead>
     <tbody>
       {% for admin in admins %}
       <tr>
         <td>{{ admin.id }}</td>
         <td>{{ admin.username }}</td>
         <td><span class="pill">{{ admin.role }}</span></td>
+        <td>
+          {% if admin.area_name %}
+            <span class="pill">{{ admin.area_level|default:"area" }}: {{ admin.area_name }}</span>
+          {% else %}
+            <span class="subtle">All areas</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if admin.boundary_min_lat is not None and admin.boundary_max_lat is not None and admin.boundary_min_lng is not None and admin.boundary_max_lng is not None %}
+            <span class="pill">Lat {{ admin.boundary_min_lat }} to {{ admin.boundary_max_lat }}</span>
+            <span class="pill">Lng {{ admin.boundary_min_lng }} to {{ admin.boundary_max_lng }}</span>
+          {% else %}
+            <span class="subtle">Not set</span>
+          {% endif %}
+        </td>
         <td>{{ admin.created_at }}</td>
         <td>
           <form method="post" action="/dashboard/admins/{{ admin.id }}/update" class="filters">
@@ -61,12 +99,23 @@
               <option value="{{ value }}" {% if admin.role == value %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
+            <select name="area_level">
+              <option value="">Not scoped</option>
+              {% for value, label in area_levels %}
+              <option value="{{ value }}" {% if admin.area_level == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input name="area_name" value="{{ admin.area_name }}" placeholder="District or ward name">
+            <input name="boundary_min_lat" value="{{ admin.boundary_min_lat }}" type="number" step="0.00000001" placeholder="Min lat">
+            <input name="boundary_max_lat" value="{{ admin.boundary_max_lat }}" type="number" step="0.00000001" placeholder="Max lat">
+            <input name="boundary_min_lng" value="{{ admin.boundary_min_lng }}" type="number" step="0.00000001" placeholder="Min lng">
+            <input name="boundary_max_lng" value="{{ admin.boundary_max_lng }}" type="number" step="0.00000001" placeholder="Max lng">
             <button class="primary" type="submit">Save</button>
           </form>
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5">No admin accounts found.</td></tr>
+      <tr><td colspan="7">No admin accounts found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
