@@ -20,10 +20,15 @@
     <div><span>Distance</span><strong>{{ route.distance_meters|floatformat:0 }} m</strong></div>
     <div><span>Duration</span><strong>{{ route.duration_seconds }} seconds</strong></div>
     <div><span>Rating</span><strong>{{ route.rating|default:"-" }}</strong></div>
+    <div><span>Fare</span><strong>{{ route.fare_cost|default:"-" }}</strong></div>
+    <div><span>Wait time</span><strong>{{ route.waiting_time_minutes|default:"-" }} min</strong></div>
+    <div><span>Transfers</span><strong>{{ route.transfer_count|default:"-" }}</strong></div>
+    <div><span>Consent</span><strong>{% if route.consent_accepted %}Accepted{% else %}Not recorded{% endif %}</strong></div>
     <div><span>Started</span><strong>{{ route.started_at }}</strong></div>
     <div><span>Ended</span><strong>{{ route.ended_at }}</strong></div>
   </div>
   <p><strong>Notes:</strong> {{ route.notes|default:"No notes recorded." }}</p>
+  <p><strong>Safety assessment:</strong> {{ route.safety_assessment|default:"No structured assessment recorded." }}</p>
 </section>
 
 <section class="card" style="margin-top:16px;">
