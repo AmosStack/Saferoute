@@ -136,7 +136,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
           backgroundColor: _brandGreen,
           foregroundColor: Colors.white,
           elevation: 0,
-          centerTitle: false,
+          centerTitle: true,
           surfaceTintColor: Colors.transparent,
         ),
         cardTheme: CardThemeData(
@@ -227,7 +227,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
           backgroundColor: Color(0xFF0F172A),
           foregroundColor: Colors.white,
           elevation: 0,
-          centerTitle: false,
+          centerTitle: true,
           surfaceTintColor: Colors.transparent,
         ),
         cardTheme: CardThemeData(
