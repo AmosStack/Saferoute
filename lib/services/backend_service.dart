@@ -209,6 +209,11 @@ class BackendService {
         'duration': route.duration.inSeconds,
         'rating': route.rating,
         'notes': route.notes,
+        'fareCost': route.fareCost,
+        'waitingTimeMinutes': route.waitingTimeMinutes,
+        'transferCount': route.transferCount,
+        'safetyAssessment': route.safetyAssessment,
+        'consentAccepted': route.consentAccepted,
         'startedAt': route.startTime.toIso8601String(),
         'endedAt': route.endTime.toIso8601String(),
       });
