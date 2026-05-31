@@ -431,6 +431,17 @@ class _SavedRouteCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(route.notes!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: isDark ? Colors.white : null)),
           ],
+          if (route.fareCost != null || route.waitingTimeMinutes != null || route.transferCount != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              [
+                if (route.fareCost != null) 'Fare: TZS ${route.fareCost!.toStringAsFixed(0)}',
+                if (route.waitingTimeMinutes != null) 'Wait: ${route.waitingTimeMinutes} min',
+                if (route.transferCount != null) 'Transfers: ${route.transferCount}',
+              ].join(' • '),
+              style: TextStyle(color: mutedTextColor, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
