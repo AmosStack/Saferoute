@@ -146,7 +146,11 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       'walking' => 1.4,
       'bicycle' => 4.5,
       'bus' => 6.0,
-      _ => 8.5,
+      'car' => 11.5,
+      'taxi' => 11.5,
+      'motorcycle' => 13.5,
+      'tricycle' => 6.5,
+      _ => 11.5,
     };
 
     return PathSegment(
@@ -759,29 +763,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
     return Padding(
       padding: const EdgeInsets.all(12.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: _resolveOrigin,
-              icon: const Icon(Icons.trip_origin),
-              label: const Text('Resolve origin'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: _resolveDestination,
-              icon: const Icon(Icons.place),
-              label: const Text('Resolve destination'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: canConfirm ? _showConfirmSheet : null,
-            child: const Text('Confirm route'),
-          ),
-        ],
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: canConfirm ? _showConfirmSheet : null,
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Start selected route'),
+        ),
       ),
     );
   }
