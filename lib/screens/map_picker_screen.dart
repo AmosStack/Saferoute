@@ -47,14 +47,14 @@ class _RouteOption {
     required this.transportHint,
     required this.segments,
     required this.hasBusStopsNearEndpoints,
-    required this.score,
+    required this.safetyScore,
   });
 
   final String label;
   final String transportHint;
   final List<PathSegment> segments;
   final bool hasBusStopsNearEndpoints;
-  final double score;
+  final double safetyScore;
 
   double get totalDistance => segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
   int get totalDuration => segments.fold<int>(0, (sum, segment) => sum + segment.duration);
@@ -106,7 +106,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   Color _optionColor(int index) {
     if (_selectedRouteIndex == index) return Colors.blueAccent;
-    if (_bestRouteIndex == index) return Colors.green;
+    if (_bestRouteIndex == index) return const Color(0xFF0E7C7B);
     return Colors.grey.shade500;
   }
 
@@ -118,14 +118,25 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     final totalDistance = segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
     final totalDuration = segments.fold<int>(0, (sum, segment) => sum + segment.duration);
 
-    var score = totalDuration.toDouble();
-    score += totalDistance / 120.0;
+    var score = 100.0;
+    score -= totalDuration / 90.0;
+    score -= totalDistance / 2500.0;
 
-    if (hint == 'walking' && totalDistance > 3500) score += 900;
-    if (hint == 'bicycle' && totalDistance > 12000) score += 500;
-    if (hint == 'bus' && !hasBusStops) score += 700;
+    if (hint == 'walking') {
+      score += totalDistance <= 1800 ? 12 : -18;
+      score += totalDuration <= 1200 ? 4 : -10;
+    } else if (hint == 'bicycle') {
+      score += totalDistance <= 8000 ? 10 : -14;
+    } else if (hint == 'bus') {
+      score += hasBusStops ? 18 : -40;
+      score += segments.length <= 3 ? 6 : -4;
+    } else if (hint == 'car' || hint == 'taxi') {
+      score += 8;
+    } else if (hint == 'motorcycle' || hint == 'tricycle') {
+      score += 4;
+    }
 
-    return score;
+    return score.clamp(0, 100).toDouble();
   }
 
   PathSegment _fallbackSegment(ll.LatLng start, ll.LatLng destination, String mode) {
@@ -385,7 +396,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           transportHint: mode,
           segments: segments,
           hasBusStopsNearEndpoints: hasBusStops,
-          score: _scoreRoute(segments: segments, hasBusStops: hasBusStops, hint: mode),
+          safetyScore: _scoreRoute(segments: segments, hasBusStops: hasBusStops, hint: mode),
         ),
       );
     }
@@ -399,19 +410,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           transportHint: mode,
           segments: segments,
           hasBusStopsNearEndpoints: hasBusStops,
-          score: _scoreRoute(segments: segments, hasBusStops: hasBusStops, hint: mode),
+          safetyScore: _scoreRoute(segments: segments, hasBusStops: hasBusStops, hint: mode),
         ),
       );
     }
 
-    var bestIndex = 0;
-    var bestScore = options.first.score;
-    for (var i = 1; i < options.length; i++) {
-      if (options[i].score < bestScore) {
-        bestScore = options[i].score;
-        bestIndex = i;
-      }
-    }
+    options.sort((a, b) => b.safetyScore.compareTo(a.safetyScore));
+    final bestIndex = 0;
 
     if (!mounted) return;
     setState(() {
@@ -477,7 +482,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 Text('From: ${_originController.text.trim()}'),
                 Text('To: ${_destinationController.text.trim()}'),
                 const SizedBox(height: 8),
-                Text('Route: ${option.label}${selectedIndex == _bestRouteIndex ? ' (Best)' : ''}'),
+                Text('Route: ${option.label}${selectedIndex == _bestRouteIndex ? ' (Safest)' : ''}'),
+                Text('Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100'),
                 Text('Distance: ${_formatDistance(option.totalDistance)}'),
                 Text('Duration: ${_formatDuration(option.totalDuration)}'),
                 Text(
@@ -521,6 +527,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                   startLocationName: _originController.text.trim(),
                                   endLocationName: _destinationController.text.trim(),
                                   transportMode: _selectedTransportMode!,
+                                  plannedRoutePoints: option.points,
+                                  plannedRouteLabel: option.label,
+                                  plannedRouteSafetyScore: option.safetyScore,
                                   userId: widget.userId,
                                 ),
                               ),
@@ -727,12 +736,12 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          '${_routeOptions[i].label}${_bestRouteIndex == i ? ' (Best)' : ''}',
+                          '${_routeOptions[i].label}${_bestRouteIndex == i ? ' (Safest)' : ''}',
                           style: TextStyle(fontWeight: _bestRouteIndex == i ? FontWeight.w700 : FontWeight.w500, color: textColor),
                         ),
                       ),
                       Text(
-                        '${_formatDistance(_routeOptions[i].totalDistance)} • ${_formatDuration(_routeOptions[i].totalDuration)}',
+                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)} • ${_formatDuration(_routeOptions[i].totalDuration)}',
                         style: TextStyle(fontSize: 12, color: isDark ? Colors.white.withValues(alpha: 0.72) : null),
                       ),
                     ],
@@ -817,7 +826,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 polylineId: gmaps.PolylineId('option_$index'),
                 points: _routeOptions[index].points.map(_toGoogleLatLng).toList(),
                 width: _selectedRouteIndex == index ? 5 : 3,
-                color: _optionColor(index),
+                color: _optionColor(index).withValues(alpha: _selectedRouteIndex == index ? 1.0 : 0.7),
               ),
           },
         ),
