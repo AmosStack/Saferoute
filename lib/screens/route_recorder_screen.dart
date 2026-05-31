@@ -830,6 +830,29 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     final coords = _recorderService.coordinates;
     final currentPoint = _recorderService.currentLatLng;
     final isRecording = _recorderService.isRecording;
+    // Split planned route into already-traveled and remaining segments
+    final List<gmaps.LatLng> plannedTraveled = <gmaps.LatLng>[];
+    final List<gmaps.LatLng> plannedRemaining = <gmaps.LatLng>[];
+    if (widget.plannedRoutePoints.length > 1) {
+      final planned = widget.plannedRoutePoints;
+      if (currentPoint != null) {
+        var minIdx = 0;
+        var minDist = double.infinity;
+        for (var i = 0; i < planned.length; i++) {
+          final d = _distanceMeters(planned[i], currentPoint);
+          if (d < minDist) {
+            minDist = d;
+            minIdx = i;
+          }
+        }
+        if (minIdx > 0) {
+          plannedTraveled.addAll(planned.sublist(0, minIdx + 1).map(_toGoogleLatLng));
+        }
+        plannedRemaining.addAll(planned.sublist(minIdx).map(_toGoogleLatLng));
+      } else {
+        plannedRemaining.addAll(planned.map(_toGoogleLatLng));
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -876,13 +899,23 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                 ),
             },
             polylines: {
-              if (widget.plannedRoutePoints.length > 1)
+              // planned traveled segment (already passed on planned path)
+              if (plannedTraveled.length > 1)
                 gmaps.Polyline(
-                  polylineId: const gmaps.PolylineId('planned_route'),
-                  points: widget.plannedRoutePoints.map(_toGoogleLatLng).toList(),
-                  width: 5,
-                  color: const Color(0xFF0E7C7B).withValues(alpha: 0.45),
+                  polylineId: const gmaps.PolylineId('planned_traveled'),
+                  points: plannedTraveled,
+                  width: 6,
+                  color: Colors.grey.shade400,
                 ),
+              // planned remaining segment (the safest suggested route ahead)
+              if (plannedRemaining.length > 1)
+                gmaps.Polyline(
+                  polylineId: const gmaps.PolylineId('planned_remaining'),
+                  points: plannedRemaining,
+                  width: 6,
+                  color: const Color(0xFF0E7C7B),
+                ),
+              // actual recorded route (what the user has traveled)
               if (coords.length > 1)
                 gmaps.Polyline(
                   polylineId: const gmaps.PolylineId('recorded_route'),
