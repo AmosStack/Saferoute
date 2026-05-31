@@ -17,6 +17,12 @@ from .db import ensure_schema
 
 logger = logging.getLogger(__name__)
 signer = Signer()
+ADMIN_ROLE_CHOICES = (
+    ("super_admin", "Super admin"),
+    ("analyst", "Analyst"),
+    ("reviewer", "Reviewer"),
+)
+ADMIN_ROLE_VALUES = {choice[0] for choice in ADMIN_ROLE_CHOICES}
 
 
 def _dictfetchall(cursor):
@@ -50,6 +56,56 @@ def _json_ready(value):
     return value
 
 
+def _current_admin(request: HttpRequest) -> dict | None:
+    username_env = os.environ.get("DASHBOARD_USERNAME", "admin")
+    password_env = os.environ.get("DASHBOARD_PASSWORD", "admin123")
+    header = request.headers.get("Authorization", "")
+
+    def _lookup_admin(username: str) -> dict | None:
+        ensure_schema()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT username, password_hash, role FROM saferoute.admins WHERE username = %s LIMIT 1",
+                [username],
+            )
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {"username": row[0], "password_hash": row[1], "role": row[2] or "super_admin"}
+
+    if header.startswith("Basic "):
+        try:
+            raw = base64.b64decode(header.removeprefix("Basic ").strip()).decode("utf-8")
+            supplied_username, supplied_password = raw.split(":", 1)
+            admin = _lookup_admin(supplied_username)
+            if admin and _password_matches(supplied_password, admin["password_hash"]):
+                return admin
+            if supplied_username == username_env and supplied_password == password_env:
+                return {"username": supplied_username, "password_hash": password_env, "role": "super_admin"}
+        except Exception:
+            pass
+
+    signed = request.COOKIES.get("dashboard_signed")
+    if signed:
+        try:
+            unsigned = signer.unsign(signed)
+            admin = _lookup_admin(unsigned)
+            if admin:
+                return admin
+            if unsigned == username_env:
+                return {"username": unsigned, "password_hash": password_env, "role": "super_admin"}
+        except BadSignature:
+            pass
+
+    return None
+
+
+def _role_permitted(admin_role: str, allowed_roles: set[str] | None) -> bool:
+    if not allowed_roles or admin_role == "super_admin":
+        return True
+    return admin_role in allowed_roles
+
+
 def _password_matches(raw_password: str, stored_hash: str) -> bool:
     try:
         if check_password(raw_password, stored_hash):
@@ -60,59 +116,32 @@ def _password_matches(raw_password: str, stored_hash: str) -> bool:
     return raw_password == stored_hash
 
 
-def _dashboard_auth(view_func):
-    @wraps(view_func)
-    def wrapper(request: HttpRequest, *args, **kwargs):
-        # Allow Basic Auth (useful for API/CLI) or cookie-based login for browsers.
-        username_env = os.environ.get("DASHBOARD_USERNAME", "admin")
-        password_env = os.environ.get("DASHBOARD_PASSWORD", "admin123")
-        header = request.headers.get("Authorization", "")
+def _dashboard_auth(view_func=None, *, roles: set[str] | None = None):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(request: HttpRequest, *args, **kwargs):
+            admin = _current_admin(request)
+            if admin is None:
+                accept = request.headers.get("Accept", "")
+                if "text/html" in accept:
+                    return _redirect("dashboard_login")
 
-        def _check_credentials(u: str, p: str) -> bool:
-            ensure_schema()
-            # Check admins table first
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT password_hash FROM saferoute.admins WHERE username = %s LIMIT 1", [u])
-                row = cursor.fetchone()
-                if row:
-                    return _password_matches(p, row[0])
+                response = HttpResponse("Authentication required", status=401)
+                response["WWW-Authenticate"] = 'Basic realm="SafeRoute Admin"'
+                return response
 
-            # Fall back to env var
-            return u == username_env and p == password_env
+            if not _role_permitted(admin.get("role", "super_admin"), roles):
+                return HttpResponse("Forbidden", status=403)
 
-        # Basic header check
-        if header.startswith("Basic "):
-            try:
-                raw = base64.b64decode(header.removeprefix("Basic ").strip()).decode("utf-8")
-                supplied_username, supplied_password = raw.split(":", 1)
-                if _check_credentials(supplied_username, supplied_password):
-                    return view_func(request, *args, **kwargs)
-            except Exception:
-                pass
+            request.safe_route_admin = admin
+            return func(request, *args, **kwargs)
 
-        # Cookie-based (signed username)
-        signed = request.COOKIES.get("dashboard_signed")
-        if signed:
-            try:
-                unsigned = signer.unsign(signed)
-                # confirm the username exists (either in admins table or env)
-                with connection.cursor() as cursor:
-                    cursor.execute("SELECT 1 FROM saferoute.admins WHERE username = %s LIMIT 1", [unsigned])
-                    if cursor.fetchone() or unsigned == username_env:
-                        return view_func(request, *args, **kwargs)
-            except BadSignature:
-                pass
+        return wrapper
 
-        # If this looks like an HTML request, redirect to the login form so browsers don't show the Basic Auth prompt.
-        accept = request.headers.get("Accept", "")
-        if "text/html" in accept:
-            return _redirect("dashboard_login")
+    if view_func is not None and callable(view_func):
+        return decorator(view_func)
 
-        response = HttpResponse("Authentication required", status=401)
-        response["WWW-Authenticate"] = 'Basic realm="SafeRoute Admin"'
-        return response
-
-    return wrapper
+    return decorator
 
 
 def _redirect(path_name: str, **params):
@@ -131,17 +160,17 @@ def dashboard_login(request: HttpRequest):
         if not username or not password:
             error = "Username and password are required."
         else:
-            # validate
-            def _check_credentials(u: str, p: str) -> bool:
+            admin = _current_admin(request)
+            if admin is None:
                 with connection.cursor() as cursor:
-                    cursor.execute("SELECT password_hash FROM saferoute.admins WHERE username = %s LIMIT 1", [u])
+                    cursor.execute("SELECT password_hash, role FROM saferoute.admins WHERE username = %s LIMIT 1", [username])
                     row = cursor.fetchone()
-                    if row:
-                        return _password_matches(p, row[0])
-                # fallback to env
-                return u == os.environ.get("DASHBOARD_USERNAME", "admin") and p == os.environ.get("DASHBOARD_PASSWORD", "admin123")
+                if row and _password_matches(password, row[0]):
+                    admin = {"username": username, "password_hash": row[0], "role": row[1] or "super_admin"}
+                elif username == os.environ.get("DASHBOARD_USERNAME", "admin") and password == os.environ.get("DASHBOARD_PASSWORD", "admin123"):
+                    admin = {"username": username, "password_hash": password, "role": "super_admin"}
 
-            if _check_credentials(username, password):
+            if admin is not None:
                 response = _redirect("dashboard_home")
                 response.set_cookie("dashboard_signed", signer.sign(username), httponly=True, max_age=60 * 60 * 24)
                 return response
@@ -155,6 +184,111 @@ def dashboard_logout(request: HttpRequest):
     response = _redirect("dashboard_login")
     response.delete_cookie("dashboard_signed")
     return response
+
+
+@_dashboard_auth(roles={"super_admin"})
+def admins_list(request: HttpRequest):
+    ensure_schema()
+    query = request.GET.get("q", "").strip()
+    params = []
+    where = ""
+    if query:
+        where = "WHERE username ILIKE %s OR role ILIKE %s"
+        params = [f"%{query}%", f"%{query}%"]
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT id, username, role, created_at
+            FROM saferoute.admins
+            {where}
+            ORDER BY created_at DESC, username ASC
+            """,
+            params,
+        )
+        admins = _dictfetchall(cursor)
+
+    return render(
+        request,
+        "dashboard/admins.html",
+        {
+            "active": "admins",
+            "admins": admins,
+            "roles": ADMIN_ROLE_CHOICES,
+            "query": query,
+            "message": request.GET.get("message", ""),
+            "error": request.GET.get("error", ""),
+        },
+    )
+
+
+@_dashboard_auth(roles={"super_admin"})
+def admin_create(request: HttpRequest):
+    if request.method != "POST":
+        return _redirect("admins_list")
+
+    ensure_schema()
+    username = request.POST.get("username", "").strip().lower()
+    password = request.POST.get("password", "")
+    role = request.POST.get("role", "super_admin").strip()
+
+    if not username or len(password) < 8:
+        return _redirect("admins_list", error="Username and an 8 character password are required.")
+    if role not in ADMIN_ROLE_VALUES:
+        return _redirect("admins_list", error="Choose a valid admin role.")
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM saferoute.admins WHERE username = %s LIMIT 1",
+                [username],
+            )
+            if cursor.fetchone():
+                return _redirect("admins_list", error="An admin with that username already exists.")
+
+            cursor.execute(
+                """
+                INSERT INTO saferoute.admins (username, password_hash, role)
+                VALUES (%s, %s, %s)
+                """,
+                [username, make_password(password), role],
+            )
+        return _redirect("admins_list", message="Admin created.")
+    except Exception as exc:
+        return _redirect("admins_list", error=str(exc))
+
+
+@_dashboard_auth(roles={"super_admin"})
+def admin_update(request: HttpRequest, admin_id: int):
+    if request.method != "POST":
+        return _redirect("admins_list")
+
+    ensure_schema()
+    role = request.POST.get("role", "").strip()
+    if role not in ADMIN_ROLE_VALUES:
+        return _redirect("admins_list", error="Choose a valid admin role.")
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT username, role FROM saferoute.admins WHERE id = %s", [admin_id])
+            row = cursor.fetchone()
+            if not row:
+                return _redirect("admins_list", error="Admin not found.")
+
+            current_role = row[1] or "super_admin"
+            if current_role == "super_admin" and role != "super_admin":
+                cursor.execute("SELECT COUNT(*) FROM saferoute.admins WHERE role = 'super_admin'")
+                super_admin_count = cursor.fetchone()[0]
+                if super_admin_count <= 1:
+                    return _redirect("admins_list", error="At least one super admin must remain.")
+
+            cursor.execute(
+                "UPDATE saferoute.admins SET role = %s WHERE id = %s",
+                [role, admin_id],
+            )
+        return _redirect("admins_list", message="Admin role updated.")
+    except Exception as exc:
+        return _redirect("admins_list", error=str(exc))
 
 
 def _metrics():
@@ -355,7 +489,7 @@ def dashboard_home(request: HttpRequest):
     )
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin", "analyst"})
 def users_list(request: HttpRequest):
     ensure_schema()
     query = request.GET.get("q", "").strip()
@@ -395,7 +529,7 @@ def users_list(request: HttpRequest):
     )
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin"})
 def user_create(request: HttpRequest):
     if request.method == "POST":
         ensure_schema()
@@ -422,7 +556,7 @@ def user_create(request: HttpRequest):
     return render(request, "dashboard/user_form.html", {"active": "users", "mode": "Create", "user": {}})
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin"})
 def user_edit(request: HttpRequest, user_id: int):
     ensure_schema()
     if request.method == "POST":
@@ -461,7 +595,7 @@ def user_edit(request: HttpRequest, user_id: int):
     return render(request, "dashboard/user_form.html", {"active": "users", "mode": "Edit", "user": user})
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin"})
 @require_POST
 def user_delete(request: HttpRequest, user_id: int):
     ensure_schema()
@@ -470,7 +604,7 @@ def user_delete(request: HttpRequest, user_id: int):
     return _redirect("users_list", message="User deleted.")
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin", "analyst", "reviewer"})
 def routes_list(request: HttpRequest):
     ensure_schema()
     mode = request.GET.get("mode", "").strip()
@@ -510,7 +644,7 @@ def routes_list(request: HttpRequest):
     )
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin", "analyst", "reviewer"})
 def route_detail(request: HttpRequest, route_id):
     ensure_schema()
     with connection.cursor() as cursor:
@@ -555,7 +689,7 @@ def route_detail(request: HttpRequest, route_id):
     )
 
 
-@_dashboard_auth
+@_dashboard_auth(roles={"super_admin", "analyst"})
 def analytics(request: HttpRequest):
     ensure_schema()
     with connection.cursor() as cursor:
