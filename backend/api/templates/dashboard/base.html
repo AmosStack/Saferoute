@@ -38,6 +38,19 @@
     .brand { display: flex; flex-direction: column; gap: 4px; padding: 0 8px; }
     .brand strong { font-size: 22px; letter-spacing: 0; }
     .brand span { color: #a9c5b8; font-size: 13px; }
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #d7ebe2;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
     .nav { display: grid; gap: 6px; }
     .nav a {
       display: flex;
@@ -237,10 +250,14 @@
       <div class="brand">
         <strong>SafeRoute</strong>
         <span>System administration</span>
+        {% if request.safe_route_admin %}
+        <span class="role-badge">{{ request.safe_route_admin.role|default:"super_admin" }}</span>
+        {% endif %}
       </div>
       <nav class="nav">
         <a class="{% if active == 'dashboard' %}active{% endif %}" href="/dashboard">Overview</a>
         <a class="{% if active == 'users' %}active{% endif %}" href="/dashboard/users">Users</a>
+        <a class="{% if active == 'admins' %}active{% endif %}" href="/dashboard/admins">Admins</a>
         <a class="{% if active == 'routes' %}active{% endif %}" href="/dashboard/routes">Routes</a>
         <a class="{% if active == 'analytics' %}active{% endif %}" href="/dashboard/analytics">Analytics</a>
       </nav>
