@@ -81,6 +81,11 @@ CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
 
     rating INT,
     notes TEXT,
+    fare_cost NUMERIC(10,2),
+    waiting_time_minutes INT,
+    transfer_count INT,
+    safety_assessment JSONB,
+    consent_accepted BOOLEAN NOT NULL DEFAULT FALSE,
 
     started_at TIMESTAMP NOT NULL,
     ended_at TIMESTAMP NOT NULL,
@@ -217,10 +222,11 @@ CREATE TABLE IF NOT EXISTS saferoute.admins (
     id SERIAL PRIMARY KEY,
     username VARCHAR(120) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'super_admin',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO saferoute.admins (username, password_hash)
-VALUES ('admin', 'pbkdf2_sha256$870000$saferoute-admin$YGM/Ri/+IeI1dZFTWtfFrYOIOSV/3THvCtuxis0ClVk=')
+INSERT INTO saferoute.admins (username, password_hash, role)
+VALUES ('admin', 'pbkdf2_sha256$870000$saferoute-admin$YGM/Ri/+IeI1dZFTWtfFrYOIOSV/3THvCtuxis0ClVk=', 'super_admin')
 ON CONFLICT (username)
-DO UPDATE SET password_hash = EXCLUDED.password_hash;
+DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role;
