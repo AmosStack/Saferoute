@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:math' as math;
 import 'dart:convert';
 
 /// Represents a segment of a journey with a specific transport mode
@@ -49,6 +50,17 @@ class BusStop {
 class RoutePathPlannerService {
   static const String _osrmUrl = 'http://router.project-osrm.org/route/v1';
   static const String _nominatimUrl = 'https://nominatim.openstreetmap.org/search';
+
+  static const Map<String, double> _fallbackSpeedMps = {
+    'walking': 1.4,
+    'bicycle': 4.5,
+    'bus': 6.0,
+    'car': 11.5,
+    'driving': 11.5,
+    'taxi': 11.5,
+    'motorcycle': 13.5,
+    'tricycle': 6.5,
+  };
 
   /// Calculate a path based on transport mode
   /// For bus: returns walk -> bus -> walk segments
@@ -113,7 +125,7 @@ class RoutePathPlannerService {
           .toList();
 
       final distance = (route['distance'] as num?)?.toDouble() ?? 0.0;
-      final duration = (route['duration'] as num?)?.toInt() ?? 0;
+      final duration = (route['duration'] as num?)?.toInt() ?? _estimateDurationSeconds(points, _profileToMode(profile));
 
       return [
         PathSegment(
@@ -127,6 +139,27 @@ class RoutePathPlannerService {
       debugPrint('Error calculating route: $e');
       return null;
     }
+  }
+
+  static int _estimateDurationSeconds(List<LatLng> points, String transportMode) {
+    if (points.length < 2) return 0;
+
+    var distanceMeters = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final lat1 = a.latitude * (3.141592653589793 / 180.0);
+      final lat2 = b.latitude * (3.141592653589793 / 180.0);
+      final dLat = (b.latitude - a.latitude) * (3.141592653589793 / 180.0);
+      final dLon = (b.longitude - a.longitude) * (3.141592653589793 / 180.0);
+      final sinLat = math.sin(dLat / 2);
+      final sinLon = math.sin(dLon / 2);
+      final h = sinLat * sinLat + (sinLon * sinLon) * (math.cos(lat1) * math.cos(lat2));
+      distanceMeters += 2 * 6371000.0 * math.asin(math.sqrt(h));
+    }
+
+    final speed = _fallbackSpeedMps[transportMode] ?? _fallbackSpeedMps['driving']!;
+    return (distanceMeters / speed).round();
   }
 
   /// Calculate a multi-segment bus path:
