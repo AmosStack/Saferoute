@@ -19,6 +19,17 @@ CREATE TABLE IF NOT EXISTS saferoute.users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- populate geometry columns from existing lat/lng and coordinates
+UPDATE saferoute.recorded_routes SET start_geom = ST_SetSRID(ST_MakePoint(start_longitude::double precision, start_latitude::double precision), 4326) WHERE start_geom IS NULL AND start_latitude IS NOT NULL AND start_longitude IS NOT NULL;
+UPDATE saferoute.recorded_routes SET end_geom = ST_SetSRID(ST_MakePoint(end_longitude::double precision, end_latitude::double precision), 4326) WHERE end_geom IS NULL AND end_latitude IS NOT NULL AND end_longitude IS NOT NULL;
+UPDATE saferoute.recorded_routes SET route_geom = ST_SetSRID(ST_MakeLine(ARRAY(SELECT ST_MakePoint((pt->>'lng')::double precision, (pt->>'lat')::double precision) FROM jsonb_array_elements(coordinates) WITH ORDINALITY AS t(pt, idx) ORDER BY idx)), 4326) WHERE route_geom IS NULL AND coordinates IS NOT NULL;
+
+-- spatial indexes
+CREATE INDEX IF NOT EXISTS idx_recorded_routes_start_geom ON saferoute.recorded_routes USING GIST (start_geom);
+CREATE INDEX IF NOT EXISTS idx_recorded_routes_end_geom ON saferoute.recorded_routes USING GIST (end_geom);
+CREATE INDEX IF NOT EXISTS idx_recorded_routes_route_geom ON saferoute.recorded_routes USING GIST (route_geom);
+CREATE INDEX IF NOT EXISTS idx_admins_boundary_geom ON saferoute.admins USING GIST (boundary_geom);
+
 -- =========================================
 -- TRANSPORT MODES TABLE
 -- =========================================
@@ -73,6 +84,10 @@ CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
 
     end_latitude DECIMAL(10,8) NOT NULL,
     end_longitude DECIMAL(11,8) NOT NULL,
+
+    start_geom geometry(Point,4326),
+    end_geom geometry(Point,4326),
+    route_geom geometry(LineString,4326),
 
     coordinates JSONB NOT NULL,
 
@@ -229,6 +244,7 @@ CREATE TABLE IF NOT EXISTS saferoute.admins (
     boundary_max_lat DECIMAL(10,8),
     boundary_min_lng DECIMAL(11,8),
     boundary_max_lng DECIMAL(11,8),
+    boundary_geom geometry(Polygon,4326),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
