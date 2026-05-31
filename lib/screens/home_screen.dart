@@ -81,8 +81,6 @@ class _HomeScreenState extends State<HomeScreen> {
         localeCode: widget.localeCode,
         user: widget.user,
         onOpenMap: _openRouteMap,
-        onGoToRoutes: () => _switchTab(1),
-        onGoToCommunity: () => _switchTab(2),
       ),
       _RouteHistoryPage(
         localeCode: widget.localeCode,
@@ -140,69 +138,18 @@ class _HomeLandingPage extends StatelessWidget {
     required this.localeCode,
     required this.user,
     required this.onOpenMap,
-    required this.onGoToRoutes,
-    required this.onGoToCommunity,
   });
 
   final String localeCode;
   final AuthUser? user;
   final VoidCallback onOpenMap;
-  final VoidCallback onGoToRoutes;
-  final VoidCallback onGoToCommunity;
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings(localeCode);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
         _HeroCard(localeCode: localeCode, user: user, onOpenMap: onOpenMap),
-        const SizedBox(height: 14),
-        GreenSectionHeader(
-          title: strings.quickActions,
-          subtitle: strings.heroSubtitle,
-          trailing: const Icon(Icons.auto_awesome, color: Colors.white),
-        ),
-        const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 1.05,
-          children: [
-            _ActionTile(
-              title: strings.selectLocation,
-              subtitle: strings.selectLocationSubtitle,
-              icon: Icons.place_outlined,
-              onTap: onOpenMap,
-            ),
-            _ActionTile(
-              title: strings.chooseTransport,
-              subtitle: strings.chooseTransportSubtitle,
-              icon: Icons.directions_car_outlined,
-              onTap: onOpenMap,
-            ),
-            _ActionTile(
-              title: strings.trustedPeople,
-              subtitle: strings.trustedPeopleSubtitle,
-              icon: Icons.shield_outlined,
-              onTap: onGoToCommunity,
-            ),
-            _ActionTile(
-              title: strings.travelHistory,
-              subtitle: strings.travelHistorySubtitle,
-              icon: Icons.route_outlined,
-              onTap: onGoToRoutes,
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        _InfoCard(
-          title: strings.safetyFirst,
-          subtitle: strings.safetyFirstSubtitle,
-        ),
       ],
     );
   }
@@ -257,71 +204,6 @@ class _HeroCard extends StatelessWidget {
             ),
             child: Text(strings.openRouteMap),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    return HoverSurface(
-      onTap: onTap,
-      padding: const EdgeInsets.all(14),
-      borderRadius: 18,
-      backgroundColor: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFF0E7C7B).withValues(alpha: 0.12),
-            child: Icon(icon, color: const Color(0xFF0E7C7B)),
-          ),
-          const Spacer(),
-          Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
-          const SizedBox(height: 4),
-          Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.72) : null)),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    return HoverSurface(
-      padding: const EdgeInsets.all(14),
-      borderRadius: 16,
-      backgroundColor: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.72) : null)),
         ],
       ),
     );
