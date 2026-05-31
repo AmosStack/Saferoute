@@ -1,0 +1,74 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Admins - SafeRoute Admin{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>Admins</h1>
+    <div class="subtle">Manage dashboard access roles and create new admin accounts.</div>
+  </div>
+</div>
+
+{% if message %}<div class="notice ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+
+<section class="card">
+  <div class="section-title">
+    <h2>Create admin</h2>
+    <span class="subtle">Super admins only</span>
+  </div>
+  <form class="form-grid" method="post" action="/dashboard/admins/new">
+    <label>Username
+      <input name="username" autocomplete="username" required>
+    </label>
+    <label>Password
+      <input name="password" type="password" autocomplete="new-password" required placeholder="Minimum 8 characters">
+    </label>
+    <label>Role
+      <select name="role" required>
+        {% for value, label in roles %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="primary" type="submit">Create admin</button>
+  </form>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <div class="section-title">
+    <h2>Admin accounts</h2>
+    <form class="filters" method="get">
+      <label>Search
+        <input name="q" value="{{ query }}" placeholder="Username or role">
+      </label>
+      <button class="primary" type="submit">Filter</button>
+      <a class="button" href="/dashboard/admins">Reset</a>
+    </form>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Created</th><th>Update role</th></tr></thead>
+    <tbody>
+      {% for admin in admins %}
+      <tr>
+        <td>{{ admin.id }}</td>
+        <td>{{ admin.username }}</td>
+        <td><span class="pill">{{ admin.role }}</span></td>
+        <td>{{ admin.created_at }}</td>
+        <td>
+          <form method="post" action="/dashboard/admins/{{ admin.id }}/update" class="filters">
+            <select name="role">
+              {% for value, label in roles %}
+              <option value="{{ value }}" {% if admin.role == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="primary" type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No admin accounts found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
