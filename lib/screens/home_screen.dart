@@ -33,6 +33,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   late Future<List<RecordedRoute>?> _routesFuture;
+  String? _selectedTransportMode;
 
   @override
   void initState() {
@@ -58,7 +59,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openRouteMap() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => MapPickerScreen(userId: widget.user?.id),
+        builder: (context) => MapPickerScreen(
+          userId: widget.user?.id,
+          initialTransportMode: _selectedTransportMode,
+        ),
       ),
     );
   }
@@ -81,6 +85,12 @@ class _HomeScreenState extends State<HomeScreen> {
         localeCode: widget.localeCode,
         user: widget.user,
         onOpenMap: _openRouteMap,
+        selectedTransportMode: _selectedTransportMode,
+        onTransportModeChanged: (mode) {
+          setState(() {
+            _selectedTransportMode = mode;
+          });
+        },
       ),
       _RouteHistoryPage(
         localeCode: widget.localeCode,
@@ -138,11 +148,22 @@ class _HomeLandingPage extends StatelessWidget {
     required this.localeCode,
     required this.user,
     required this.onOpenMap,
+    required this.selectedTransportMode,
+    required this.onTransportModeChanged,
   });
 
   final String localeCode;
   final AuthUser? user;
   final VoidCallback onOpenMap;
+  final String? selectedTransportMode;
+  final ValueChanged<String?> onTransportModeChanged;
+
+  static const List<_HomeTransportOption> _transportOptions = <_HomeTransportOption>[
+    _HomeTransportOption(label: 'Walking', mode: 'walking', icon: Icons.directions_walk),
+    _HomeTransportOption(label: 'Bicycle', mode: 'bicycle', icon: Icons.pedal_bike),
+    _HomeTransportOption(label: 'Car', mode: 'car', icon: Icons.directions_car),
+    _HomeTransportOption(label: 'Bus', mode: 'bus', icon: Icons.directions_bus),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +171,86 @@ class _HomeLandingPage extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       children: [
         _HeroCard(localeCode: localeCode, user: user, onOpenMap: onOpenMap),
+        const SizedBox(height: 14),
+        _TransportPickerCard(
+          selectedTransportMode: selectedTransportMode,
+          onTransportModeChanged: onTransportModeChanged,
+          onOpenMap: onOpenMap,
+        ),
       ],
+    );
+  }
+}
+
+class _HomeTransportOption {
+  const _HomeTransportOption({required this.label, required this.mode, required this.icon});
+
+  final String label;
+  final String mode;
+  final IconData icon;
+}
+
+class _TransportPickerCard extends StatelessWidget {
+  const _TransportPickerCard({
+    required this.selectedTransportMode,
+    required this.onTransportModeChanged,
+    required this.onOpenMap,
+  });
+
+  final String? selectedTransportMode;
+  final ValueChanged<String?> onTransportModeChanged;
+  final VoidCallback onOpenMap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.64);
+    final canStart = selectedTransportMode != null;
+
+    return HoverSurface(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 22,
+      backgroundColor: isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white,
+      borderColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Transport mode', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: textColor)),
+          const SizedBox(height: 6),
+          Text('Pick one before opening the map.', style: TextStyle(color: mutedTextColor)),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final option in _HomeLandingPage._transportOptions)
+                ChoiceChip(
+                  avatar: Icon(option.icon, size: 18, color: selectedTransportMode == option.mode ? Colors.white : const Color(0xFF0E7C7B)),
+                  label: Text(option.label),
+                  selected: selectedTransportMode == option.mode,
+                  selectedColor: const Color(0xFF0E7C7B),
+                  labelStyle: TextStyle(
+                    color: selectedTransportMode == option.mode ? Colors.white : textColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  onSelected: (selected) {
+                    onTransportModeChanged(selected ? option.mode : null);
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: canStart ? onOpenMap : null,
+              icon: const Icon(Icons.map_outlined),
+              label: Text(canStart ? 'Start route' : 'Choose transport first'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
