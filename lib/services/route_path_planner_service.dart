@@ -117,15 +117,11 @@ class RoutePathPlannerService {
       if (routes == null || routes.isEmpty) return null;
 
       final route = routes.first as Map<String, dynamic>;
-      final geometry = route['geometry'] as Map<String, dynamic>;
-      final coordinates = geometry['coordinates'] as List;
-      final points = coordinates
-          .cast<List>()
-          .map((coord) => LatLng(coord[1] as double, coord[0] as double))
-          .toList();
+        final points = _decodeRoutePoints(route['geometry']);
+        if (points.length < 2) return null;
 
       final distance = (route['distance'] as num?)?.toDouble() ?? 0.0;
-      final duration = (route['duration'] as num?)?.toInt() ?? _estimateDurationSeconds(points, _profileToMode(profile));
+        final duration = _routeDurationSeconds(route['duration'], points, _profileToMode(profile));
 
       return [
         PathSegment(
@@ -160,6 +156,33 @@ class RoutePathPlannerService {
 
     final speed = _fallbackSpeedMps[transportMode] ?? _fallbackSpeedMps['driving']!;
     return (distanceMeters / speed).round();
+  }
+
+  static int _routeDurationSeconds(Object? rawDuration, List<LatLng> points, String transportMode) {
+    final duration = (rawDuration as num?)?.toInt();
+    if (duration != null && duration > 0) {
+      return duration;
+    }
+    return _estimateDurationSeconds(points, transportMode);
+  }
+
+  static List<LatLng> _decodeRoutePoints(Object? geometry) {
+    if (geometry is Map) {
+      final coordinates = geometry['coordinates'];
+      if (coordinates is List) {
+        return coordinates
+            .whereType<List>()
+            .where((coord) => coord.length >= 2)
+            .map((coord) {
+              final lon = (coord[0] as num).toDouble();
+              final lat = (coord[1] as num).toDouble();
+              return LatLng(lat, lon);
+            })
+            .toList();
+      }
+    }
+
+    return const <LatLng>[];
   }
 
   /// Calculate a multi-segment bus path:
