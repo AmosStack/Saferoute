@@ -64,6 +64,14 @@
       font-size: 14px;
     }
     .nav a.active, .nav a:hover { background: #1f3b31; color: #fff; }
+    .sidebar-footer { margin-top: auto; padding-top: 8px; }
+    .sidebar-footer .button {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    .sidebar-footer .button:hover { background: rgba(255, 255, 255, 0.12); }
     .main { padding: 24px; min-width: 0; }
     .auth-page {
       min-height: 100vh;
@@ -261,6 +269,11 @@
         <a class="{% if active == 'routes' %}active{% endif %}" href="/dashboard/routes">Routes</a>
         <a class="{% if active == 'analytics' %}active{% endif %}" href="/dashboard/analytics">Analytics</a>
       </nav>
+      {% if request.safe_route_admin %}
+      <div class="sidebar-footer">
+        <a class="button" href="/dashboard/logout">Log out</a>
+      </div>
+      {% endif %}
     </aside>
     <main class="main">
       {% block content %}{% endblock %}
