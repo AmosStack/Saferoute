@@ -19,9 +19,11 @@ def ensure_schema() -> None:
           id SERIAL PRIMARY KEY,
           username VARCHAR(120) NOT NULL UNIQUE,
           password_hash VARCHAR(255) NOT NULL,
+          role VARCHAR(32) NOT NULL DEFAULT 'super_admin',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS role VARCHAR(32) NOT NULL DEFAULT 'super_admin'",
         """
         CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -38,6 +40,11 @@ def ensure_schema() -> None:
           duration_seconds INT NOT NULL,
           rating INT,
           notes TEXT,
+          fare_cost NUMERIC(10, 2),
+          waiting_time_minutes INT,
+          transfer_count INT,
+          safety_assessment JSONB,
+          consent_accepted BOOLEAN NOT NULL DEFAULT FALSE,
           started_at TIMESTAMP NOT NULL,
           ended_at TIMESTAMP NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -49,6 +56,11 @@ def ensure_schema() -> None:
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS start_location_name TEXT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS end_location_name TEXT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS transport_mode TEXT NOT NULL DEFAULT 'walking'",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS fare_cost NUMERIC(10, 2)",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS waiting_time_minutes INT",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS transfer_count INT",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS safety_assessment JSONB",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS consent_accepted BOOLEAN NOT NULL DEFAULT FALSE",
         """
         CREATE TABLE IF NOT EXISTS saferoute.transport_modes (
           id SERIAL PRIMARY KEY,
