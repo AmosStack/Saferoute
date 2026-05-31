@@ -365,12 +365,19 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 }
 
-class _SectionCard extends StatelessWidget {
+class _SectionCard extends StatefulWidget {
   const _SectionCard({required this.title, required this.subtitle, required this.child});
 
   final String title;
   final String subtitle;
   final Widget child;
+
+  @override
+  State<_SectionCard> createState() => _SectionCardState();
+}
+
+class _SectionCardState extends State<_SectionCard> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -381,13 +388,41 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GreenSectionHeader(
-            title: title,
-            subtitle: subtitle,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          InkWell(
+            onTap: () {
+              setState(() {
+                _expanded = !_expanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                        const SizedBox(height: 4),
+                        Text(widget.subtitle, style: TextStyle(color: Colors.black.withValues(alpha: 0.65))),
+                      ],
+                    ),
+                  ),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 14),
-          child,
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: widget.child,
+            ),
+            crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 220),
+          ),
         ],
       ),
     );
