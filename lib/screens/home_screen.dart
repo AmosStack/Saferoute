@@ -75,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings(widget.localeCode);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final pages = [
       _HomeLandingPage(
         localeCode: widget.localeCode,
@@ -109,8 +110,9 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _switchTab,
-        backgroundColor: Colors.white.withValues(alpha: 0.88),
-        indicatorColor: const Color(0xFF0E7C7B).withValues(alpha: 0.16),
+        backgroundColor: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.96) : Colors.white.withValues(alpha: 0.88),
+        indicatorColor: const Color(0xFF0E7C7B).withValues(alpha: isDark ? 0.26 : 0.16),
+        shadowColor: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.08),
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.home_outlined),
