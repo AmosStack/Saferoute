@@ -14,6 +14,11 @@ class RecordedRoute {
     required this.distance,
     this.rating,
     this.notes,
+    this.fareCost,
+    this.waitingTimeMinutes,
+    this.transferCount,
+    this.safetyAssessment = const <String, int>{},
+    this.consentAccepted = false,
   });
 
   final String? id;
@@ -28,6 +33,11 @@ class RecordedRoute {
   final double distance; // in meters
   final int? rating; // 1-5 stars
   final String? notes;
+  final double? fareCost;
+  final int? waitingTimeMinutes;
+  final int? transferCount;
+  final Map<String, int> safetyAssessment;
+  final bool consentAccepted;
 
   Duration get duration => endTime.difference(startTime);
 
@@ -57,6 +67,11 @@ class RecordedRoute {
     'distance': distance,
     'rating': rating,
     'notes': notes,
+    'fareCost': fareCost,
+    'waitingTimeMinutes': waitingTimeMinutes,
+    'transferCount': transferCount,
+    'safetyAssessment': safetyAssessment,
+    'consentAccepted': consentAccepted,
   };
 
   factory RecordedRoute.fromJson(Map<String, dynamic> json) => RecordedRoute(
@@ -80,5 +95,11 @@ class RecordedRoute {
     distance: (json['distance'] as num).toDouble(),
     rating: json['rating'] as int?,
     notes: json['notes'] as String?,
+    fareCost: (json['fareCost'] as num?)?.toDouble(),
+    waitingTimeMinutes: json['waitingTimeMinutes'] as int?,
+    transferCount: json['transferCount'] as int?,
+    safetyAssessment: ((json['safetyAssessment'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{})
+        .map((key, value) => MapEntry(key, (value as num).toInt())),
+    consentAccepted: json['consentAccepted'] as bool? ?? false,
   );
 }
