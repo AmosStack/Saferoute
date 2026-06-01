@@ -5,9 +5,9 @@ from api import views
 
 
 urlpatterns = [
+    path("", dashboard_views.dashboard_login, name="root_login"),
     path("dashboard/login", dashboard_views.dashboard_login, name="dashboard_login"),
     path("dashboard/logout", dashboard_views.dashboard_logout, name="dashboard_logout"),
-    path("", dashboard_views.dashboard_home, name="dashboard_home"),
     path("dashboard", dashboard_views.dashboard_home, name="dashboard_home"),
     path("dashboard/users", dashboard_views.users_list, name="users_list"),
     path("dashboard/users/new", dashboard_views.user_create, name="user_create"),
