@@ -36,7 +36,6 @@ def ensure_schema() -> None:
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_max_lat DECIMAL(10, 8)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_min_lng DECIMAL(11, 8)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_max_lng DECIMAL(11, 8)",
-        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_geom geometry(Polygon, 4326)",
         """
         CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -66,14 +65,6 @@ def ensure_schema() -> None:
         """,
         "CREATE INDEX IF NOT EXISTS idx_recorded_routes_user_id ON saferoute.recorded_routes(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_recorded_routes_created_at ON saferoute.recorded_routes(created_at)",
-        "CREATE INDEX IF NOT EXISTS idx_recorded_routes_start_geom ON saferoute.recorded_routes USING GIST (start_geom)",
-        "CREATE INDEX IF NOT EXISTS idx_recorded_routes_end_geom ON saferoute.recorded_routes USING GIST (end_geom)",
-        "CREATE INDEX IF NOT EXISTS idx_recorded_routes_route_geom ON saferoute.recorded_routes USING GIST (route_geom)",
-        # populate start_geom/end_geom/route_geom from existing numeric fields if missing
-        "UPDATE saferoute.recorded_routes SET start_geom = ST_SetSRID(ST_MakePoint(start_longitude::double precision, start_latitude::double precision), 4326) WHERE start_geom IS NULL AND start_latitude IS NOT NULL AND start_longitude IS NOT NULL",
-        "UPDATE saferoute.recorded_routes SET end_geom = ST_SetSRID(ST_MakePoint(end_longitude::double precision, end_latitude::double precision), 4326) WHERE end_geom IS NULL AND end_latitude IS NOT NULL AND end_longitude IS NOT NULL",
-        "UPDATE saferoute.recorded_routes SET route_geom = ST_SetSRID(ST_MakeLine(ARRAY(SELECT ST_MakePoint((pt->>'lng')::double precision, (pt->>'lat')::double precision) FROM jsonb_array_elements(coordinates) WITH ORDINALITY AS t(pt, idx) ORDER BY idx)), 4326) WHERE route_geom IS NULL AND coordinates IS NOT NULL",
-        "CREATE INDEX IF NOT EXISTS idx_admins_boundary_geom ON saferoute.admins USING GIST (boundary_geom)",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS start_location_name TEXT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS end_location_name TEXT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS transport_mode TEXT NOT NULL DEFAULT 'walking'",
@@ -82,9 +73,6 @@ def ensure_schema() -> None:
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS transfer_count INT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS safety_assessment JSONB",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS consent_accepted BOOLEAN NOT NULL DEFAULT FALSE",
-        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS start_geom geometry(Point, 4326)",
-        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS end_geom geometry(Point, 4326)",
-        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS route_geom geometry(LineString, 4326)",
         """
         CREATE TABLE IF NOT EXISTS saferoute.transport_modes (
           id SERIAL PRIMARY KEY,
