@@ -74,8 +74,7 @@ def _current_admin(request: HttpRequest) -> dict | None:
             cursor.execute(
                 """
                   SELECT username, password_hash, role, area_level, area_name,
-                      boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng,
-                      ST_AsText(boundary_geom) AS boundary_wkt
+                      boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
                 FROM saferoute.admins
                 WHERE username = %s
                 LIMIT 1
@@ -95,7 +94,6 @@ def _current_admin(request: HttpRequest) -> dict | None:
             "boundary_max_lat": row[6],
             "boundary_min_lng": row[7],
             "boundary_max_lng": row[8],
-            "boundary_wkt": row[9],
         }
 
     if header.startswith("Basic "):
@@ -140,7 +138,6 @@ def _scope_sql(admin: dict | None, route_alias: str = "rr", location_alias: str 
         return "1=1", []
 
     role = admin.get("role", "super_admin")
-    boundary_wkt = admin.get("boundary_wkt")
     boundary_min_lat = admin.get("boundary_min_lat")
     boundary_max_lat = admin.get("boundary_max_lat")
     boundary_min_lng = admin.get("boundary_min_lng")
@@ -149,19 +146,6 @@ def _scope_sql(admin: dict | None, route_alias: str = "rr", location_alias: str 
     if role == "super_admin":
         return "1=1", []
 
-    # Prefer using a stored geometry polygon (WKT) when available
-    if boundary_wkt:
-        # parameter: boundary_wkt
-        params = [boundary_wkt]
-        clause = (
-            f"(({route_alias}.start_geom IS NOT NULL AND ST_Contains(ST_GeomFromText(%s, 4326), {route_alias}.start_geom)) OR "
-            f"({route_alias}.end_geom IS NOT NULL AND ST_Contains(ST_GeomFromText(%s, 4326), {route_alias}.end_geom)) OR "
-            f"({route_alias}.route_geom IS NOT NULL AND ST_Intersects(ST_GeomFromText(%s, 4326), {route_alias}.route_geom)))"
-        )
-        # ST_GeomFromText will be called three times with same param; repeat in params list
-        return clause, [boundary_wkt, boundary_wkt, boundary_wkt]
-
-    # Fallback: use bounding box numeric values if provided
     if boundary_min_lat is None or boundary_max_lat is None or boundary_min_lng is None or boundary_max_lng is None:
         return "1=1", []
 
@@ -174,17 +158,12 @@ def _scope_sql(admin: dict | None, route_alias: str = "rr", location_alias: str 
         boundary_max_lat,
         boundary_min_lng,
         boundary_max_lng,
-        boundary_min_lng,
-        boundary_min_lat,
-        boundary_max_lng,
-        boundary_max_lat,
     ]
     clause = (
         f"((({route_alias}.start_latitude IS NOT NULL AND {route_alias}.start_longitude IS NOT NULL) AND "
         f"{route_alias}.start_latitude BETWEEN %s AND %s AND {route_alias}.start_longitude BETWEEN %s AND %s) OR "
         f"(({route_alias}.end_latitude IS NOT NULL AND {route_alias}.end_longitude IS NOT NULL) AND "
-        f"{route_alias}.end_latitude BETWEEN %s AND %s AND {route_alias}.end_longitude BETWEEN %s AND %s) OR "
-        f"({route_alias}.route_geom IS NOT NULL AND ST_Intersects(ST_MakeEnvelope(%s, %s, %s, %s, 4326), {route_alias}.route_geom)))"
+        f"{route_alias}.end_latitude BETWEEN %s AND %s AND {route_alias}.end_longitude BETWEEN %s AND %s))"
     )
     return clause, params
 
@@ -396,9 +375,9 @@ def admin_create(request: HttpRequest):
                 """
                 INSERT INTO saferoute.admins (
                     username, password_hash, role, area_level, area_name,
-                    boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng, boundary_geom
+                    boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, ST_MakeEnvelope(%s, %s, %s, %s, 4326))
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
                     username,
@@ -410,10 +389,6 @@ def admin_create(request: HttpRequest):
                     boundary_max_lat,
                     boundary_min_lng,
                     boundary_max_lng,
-                    boundary_min_lng,
-                    boundary_min_lat,
-                    boundary_max_lng,
-                    boundary_max_lat,
                 ],
             )
         return _redirect("admins_list", message="Admin created.")
@@ -475,8 +450,7 @@ def admin_update(request: HttpRequest, admin_id: int):
                     boundary_min_lat = %s,
                     boundary_max_lat = %s,
                     boundary_min_lng = %s,
-                    boundary_max_lng = %s,
-                    boundary_geom = ST_MakeEnvelope(%s, %s, %s, %s, 4326)
+                    boundary_max_lng = %s
                 WHERE id = %s
                 """,
                 [
@@ -487,10 +461,6 @@ def admin_update(request: HttpRequest, admin_id: int):
                     boundary_max_lat,
                     boundary_min_lng,
                     boundary_max_lng,
-                    boundary_min_lng,
-                    boundary_min_lat,
-                    boundary_max_lng,
-                    boundary_max_lat,
                     admin_id,
                 ],
             )
