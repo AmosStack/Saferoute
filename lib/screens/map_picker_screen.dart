@@ -58,6 +58,24 @@ class _RouteOption {
 
   double get totalDistance => segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
   int get totalDuration => segments.fold<int>(0, (sum, segment) => sum + segment.duration);
+  int get safetyAdjustedDuration {
+    final boundedSafety = safetyScore.clamp(0.0, 100.0);
+    final riskRatio = (100.0 - boundedSafety) / 100.0;
+    final modeWeight = switch (transportHint) {
+      'walking' => 1.15,
+      'bicycle' => 1.10,
+      'motorcycle' => 1.05,
+      'tricycle' => 1.08,
+      'bus' => 0.95,
+      'car' => 1.00,
+      'taxi' => 1.00,
+      _ => 1.00,
+    };
+
+    final multiplier = 1.0 + (0.45 * modeWeight * riskRatio);
+    return (totalDuration * multiplier).round();
+  }
+
   List<ll.LatLng> get points {
     final all = <ll.LatLng>[];
     for (final segment in segments) {
@@ -486,7 +504,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 Text('Route: ${option.label}${selectedIndex == _bestRouteIndex ? ' (Safest)' : ''}'),
                 Text('Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100'),
                 Text('Distance: ${_formatDistance(option.totalDistance)}'),
-                Text('Duration: ${_formatDuration(option.totalDuration)}'),
+                Text('Base duration: ${_formatDuration(option.totalDuration)}'),
+                Text('Safety-adjusted ETA: ${_formatDuration(option.safetyAdjustedDuration)}'),
                 Text(
                   option.hasBusStopsNearEndpoints ? 'Bus stops: available near endpoints' : 'Bus stops: not detected near endpoints',
                 ),
@@ -742,7 +761,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         ),
                       ),
                       Text(
-                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)} • ${_formatDuration(_routeOptions[i].totalDuration)}',
+                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)} • ETA ${_formatDuration(_routeOptions[i].safetyAdjustedDuration)} (base ${_formatDuration(_routeOptions[i].totalDuration)})',
                         style: TextStyle(fontSize: 12, color: isDark ? Colors.white.withValues(alpha: 0.72) : null),
                       ),
                     ],
