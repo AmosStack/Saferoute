@@ -123,4 +123,10 @@ class AppStrings {
   String get sosExplanation => isSwahili
       ? 'Kitufe cha SOS hutuma ujumbe mfupi pamoja na eneo lako kwa watu uliowachagua.'
       : 'The SOS button sends a short message and your current location to the people you selected.';
+  String get about => isSwahili ? 'Kuhusu programu' : 'About';
+  String get aboutSubtitle => isSwahili
+      ? 'Taarifa za msanidi programu na toleo la programu.'
+      : 'Developer information and app version.';
+  String get developer => isSwahili ? 'Msanidi' : 'Developer';
+  String get appVersion => isSwahili ? 'Toleo la programu' : 'App version';
 }
