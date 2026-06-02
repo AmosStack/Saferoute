@@ -333,8 +333,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     if (pos == null || !mounted) return;
 
     final userLatLng = ll.LatLng(pos.latitude, pos.longitude);
+    final resolvedName = await _reverseGeocodeName(userLatLng);
     await _moveCamera(userLatLng, zoom: 16.0);
-    await _setOrigin(userLatLng, preferredName: 'My current location');
+    await _setOrigin(userLatLng, preferredName: resolvedName ?? 'Current location');
 
     if (!mounted) return;
     setState(() {
@@ -566,60 +567,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     );
   }
 
-  Widget _buildTransportCardGrid() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.94);
-    final textColor = isDark ? Colors.white : Colors.black;
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 2.6,
-      children: [
-        for (final card in _primaryTransportCards)
-          InkWell(
-            onTap: () {
-              setState(() {
-                _selectedTransportMode = card.mode;
-              });
-              if (_start != null && _destination != null) {
-                _loadRouteSuggestions();
-              }
-            },
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _selectedTransportMode == card.mode ? const Color(0xFF0E7C7B).withValues(alpha: 0.22) : surfaceColor,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: _selectedTransportMode == card.mode ? const Color(0xFF0E7C7B) : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: const Color(0xFF0E7C7B).withValues(alpha: 0.12),
-                    child: Icon(card.icon, color: const Color(0xFF0E7C7B), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      card.label,
-                      style: TextStyle(fontWeight: FontWeight.w800, color: textColor),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildTopPanel(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white;
@@ -637,14 +584,23 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Choose transport mode first or later', style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
+                Text('Search origin and destination', style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
+                const SizedBox(height: 4),
+                Text('Choose transport mode from the home screen before opening the map.', style: TextStyle(fontSize: 12, color: isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.62))),
                 const SizedBox(height: 10),
-                _buildTransportCardGrid(),
+                _buildTopFields(surfaceColor),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildTopFields(Color surfaceColor) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         Material(
           elevation: 4,
           color: surfaceColor,
