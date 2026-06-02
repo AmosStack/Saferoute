@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SafeRoute Project Documentation</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --surface: #fffdf8;
+      --surface-2: #f8f4ec;
+      --ink: #13201d;
+      --muted: #5a6764;
+      --accent: #0e7c7b;
+      --accent-2: #c96b5c;
+      --line: #d9d1c2;
+      --soft: rgba(14, 124, 123, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(14, 124, 123, 0.08), transparent 28%),
+        radial-gradient(circle at top right, rgba(201, 107, 92, 0.10), transparent 24%),
+        linear-gradient(180deg, #fcfaf5 0%, var(--bg) 100%);
+      line-height: 1.65;
+    }
+
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 56px 28px 72px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(14,124,123,0.12), rgba(201,107,92,0.08));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(19, 32, 29, 0.08);
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-family: Arial, Helvetica, sans-serif;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    h1, h2, h3 {
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.2;
+      margin: 0 0 14px;
+    }
+
+    h1 {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: 26px;
+      margin-top: 34px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    h3 { font-size: 18px; margin-top: 24px; }
+
+    p { margin: 0 0 14px; }
+
+    .lede {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 70ch;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .meta div {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px 16px;
+    }
+
+    .meta span {
+      display: block;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px 20px;
+      box-shadow: 0 14px 30px rgba(19, 32, 29, 0.04);
+    }
+
+    ul {
+      margin: 0 0 18px 22px;
+      padding: 0;
+    }
+
+    li { margin-bottom: 8px; }
+
+    .taglist {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0;
+    }
+
+    .taglist li {
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: rgba(14, 124, 123, 0.06);
+      padding: 14px 18px;
+      border-radius: 0 16px 16px 0;
+      margin: 18px 0;
+    }
+
+    .code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      background: #10221f;
+      color: #ecf7f4;
+      padding: 14px 16px;
+      border-radius: 16px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .footer {
+      margin-top: 34px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { padding: 0; }
+      .hero, .card { box-shadow: none; }
+      a { color: inherit; text-decoration: none; }
+      .hero { break-inside: avoid; }
+      h2 { break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="eyebrow">SafeRoute Project Documentation</div>
+      <h1>Introduction, Solution Overview, and Technology Stack</h1>
+      <p class="lede">
+        SafeRoute is a cross-platform transport safety system focused on women commuters in Dar es Salaam.
+        The project combines a Flutter mobile app, a Django/PostgreSQL backend, map and location services,
+        and cloud deployment support for local development, physical devices, and Render-hosted production.
+      </p>
+
+      <div class="meta">
+        <div><span>Project</span>SafeRoute</div>
+        <div><span>Primary Goal</span>Safer route planning and route recording</div>
+        <div><span>Frontend</span>Flutter</div>
+        <div><span>Backend</span>Django + PostgreSQL</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>1. Introduction</h2>
+      <p>
+        SafeRoute addresses the real-world problem of transport poverty and safety uncertainty faced by women
+        commuters. The application is designed to help users identify safer travel options, record journeys,
+        and preserve a history of route behavior that can later support safety analysis and operational planning.
+      </p>
+      <p>
+        The current implementation is not a simple static map app. It is a complete system with user authentication,
+        session handling, route recording, location naming, GPS tracking, database-backed persistence, and an
+        admin dashboard for reviewing recorded travel and managing users.
+      </p>
+      <div class="callout">
+        <strong>Current step in the project:</strong> the app is being stabilized around local PostgreSQL and Render
+        deployment behavior, with the backend configured to use environment-driven database settings and the UI
+        starting at the login flow before any dashboard access.
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Problem Statement</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Safety visibility</h3>
+          <p>Commuters often lack a clear view of which routes, stops, or corridors are safer at specific times of day.</p>
+        </div>
+        <div class="card">
+          <h3>Weak historical data</h3>
+          <p>Without structured route records, it is difficult to analyze travel behavior, repeated incidents, or risky locations.</p>
+        </div>
+        <div class="card">
+          <h3>Deployment friction</h3>
+          <p>The app must work across local development, Android devices, emulators, and Render-hosted backend environments.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Elaborate Solution</h2>
+      <p>
+        SafeRoute solves the problem with a layered architecture. The Flutter client provides an accessible mobile
+        experience for route discovery, recording, and feedback. The Django backend exposes JSON APIs for login,
+        registration, route recording, and route retrieval. PostgreSQL stores users, routes, travel logs, safety reports,
+        and incident records in a durable relational model.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Client layer</h3>
+          <p>The Flutter app handles screens, navigation, local session persistence, and API calls.</p>
+        </div>
+        <div class="card">
+          <h3>Service layer</h3>
+          <p>The backend normalizes authentication, route capture, and database access behind HTTP endpoints.</p>
+        </div>
+        <div class="card">
+          <h3>Data layer</h3>
+          <p>PostgreSQL stores user credentials, route coordinates, named locations, and administrative records.</p>
+        </div>
+      </div>
+
+      <h3>How the flow works</h3>
+      <ul>
+        <li>The app starts with a splash screen, then checks for a stored session.</li>
+        <li>If no session is present, the user sees the authentication screen.</li>
+        <li>Authentication requests are sent to Django endpoints such as <span class="code">/auth/register</span> and <span class="code">/auth/login</span>.</li>
+        <li>Route recording sends GPS coordinates, distance, timing, and notes to <span class="code">/routes/record</span>.</li>
+        <li>The backend persists data into PostgreSQL and returns structured JSON responses to the client.</li>
+      </ul>
+
+      <h3>Current operational considerations</h3>
+      <ul>
+        <li>The deployed backend should use <span class="code">DATABASE_URL</span> on Render instead of <span class="code">localhost</span>.</li>
+        <li>The Flutter client supports local network, emulator, and public HTTPS backend URLs.</li>
+        <li>The project has a Django admin dashboard path for reviewing data and managing users.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Architecture Overview</h2>
+      <div class="card">
+        <p><strong>Frontend:</strong> Flutter app with Material 3 theming, localization, Google Maps integration, location tracking, and persistent session storage.</p>
+        <p><strong>Backend:</strong> Django 5.x API using JSON endpoints, CSRF-exempt mobile routes, Google sign-in verification, and a simple admin dashboard.</p>
+        <p><strong>Database:</strong> PostgreSQL with a dedicated <span class="code">saferoute</span> schema and tables for users, routes, logs, locations, and safety reports.</p>
+        <p><strong>Deployment:</strong> Local development on Windows, optional Android emulators/devices, and Render deployment for production hosting.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>5. Technology Stack</h2>
+      <ul class="taglist">
+        <li>Flutter</li>
+        <li>Dart 3.10+</li>
+        <li>Django 5.1+</li>
+        <li>PostgreSQL 12+</li>
+        <li>psycopg 3</li>
+        <li>dj-database-url</li>
+        <li>google_sign_in</li>
+        <li>geolocator</li>
+        <li>google_maps_flutter</li>
+        <li>http</li>
+        <li>shared_preferences</li>
+        <li>gunicorn</li>
+        <li>Render</li>
+      </ul>
+
+      <div class="grid" style="margin-top:16px;">
+        <div class="card">
+          <h3>Flutter</h3>
+          <p>Used for the mobile UI, map interactions, responsive layouts, and local session storage.</p>
+        </div>
+        <div class="card">
+          <h3>Django</h3>
+          <p>Used for authentication, route APIs, admin pages, request handling, and server-side logic.</p>
+        </div>
+        <div class="card">
+          <h3>PostgreSQL</h3>
+          <p>Used as the system of record for persistent user and route data.</p>
+        </div>
+        <div class="card">
+          <h3>Render</h3>
+          <p>Used for hosting the backend service with environment-based configuration.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>6. What Has Been Implemented So Far</h2>
+      <ul>
+        <li>Flutter app bootstrapping with splash, auth, and home flow.</li>
+        <li>Session persistence in <span class="code">shared_preferences</span>.</li>
+        <li>Backend API client with fallback URLs for local and remote deployment.</li>
+        <li>Django authentication endpoints for email/password and Google ID token login.</li>
+        <li>Route recording API that persists named locations and coordinates.</li>
+        <li>Render deployment configuration and environment variable support.</li>
+        <li>Admin login root route and trailing-slash-compatible URL patterns.</li>
+        <li>Database connection troubleshooting and local PostgreSQL verification.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. Key Design Notes</h2>
+      <ul>
+        <li>The app favors environment-driven configuration rather than hard-coded backend hosts.</li>
+        <li>The backend is structured to support both local development and public deployment.</li>
+        <li>The project uses a relational database because route history and user relationships are naturally tabular.</li>
+        <li>The interface is designed for practical mobile use, not only desktop admin access.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>8. Current Status and Next Steps</h2>
+      <p>
+        At this step, the project is functionally structured but still being refined around deployment and runtime
+        correctness. The immediate focus is making sure the backend points at the correct PostgreSQL instance,
+        that the API responds correctly on startup, and that the PDF/reporting documentation reflects the real
+        architecture rather than a placeholder summary.
+      </p>
+      <div class="callout">
+        <strong>Recommended next steps:</strong> verify the deployed database credentials, confirm the backend health
+        endpoint, and then expand the documentation with screenshots and implementation examples.
+      </div>
+    </section>
+
+    <div class="footer">
+      SafeRoute documentation draft generated from the current repository state. Intended for PDF export.
+    </div>
+  </main>
+</body>
+</html>
