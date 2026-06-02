@@ -207,6 +207,7 @@ class _TransportPickerCard extends StatelessWidget {
     final textColor = isDark ? Colors.white : Colors.black;
     final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.64);
     final canStart = selectedTransportMode != null;
+    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.96);
 
     return HoverSurface(
       padding: const EdgeInsets.all(16),
@@ -220,23 +221,51 @@ class _TransportPickerCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text('Pick one before opening the map.', style: TextStyle(color: mutedTextColor)),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.8,
             children: [
               for (final option in _HomeLandingPage._transportOptions)
-                ChoiceChip(
-                  avatar: Icon(option.icon, size: 18, color: selectedTransportMode == option.mode ? Colors.white : const Color(0xFF0E7C7B)),
-                  label: Text(option.label),
-                  selected: selectedTransportMode == option.mode,
-                  selectedColor: const Color(0xFF0E7C7B),
-                  labelStyle: TextStyle(
-                    color: selectedTransportMode == option.mode ? Colors.white : textColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  onSelected: (selected) {
-                    onTransportModeChanged(selected ? option.mode : null);
+                InkWell(
+                  onTap: () {
+                    onTransportModeChanged(selectedTransportMode == option.mode ? null : option.mode);
                   },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selectedTransportMode == option.mode ? const Color(0xFF0E7C7B).withValues(alpha: 0.18) : surfaceColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selectedTransportMode == option.mode
+                            ? const Color(0xFF0E7C7B)
+                            : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xFF0E7C7B).withValues(alpha: 0.12),
+                          child: Icon(option.icon, size: 18, color: const Color(0xFF0E7C7B)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            option.label,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: selectedTransportMode == option.mode ? const Color(0xFF0E7C7B) : textColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
             ],
           ),
