@@ -28,6 +28,9 @@ class ProfileSettingsScreen extends StatefulWidget {
   State<ProfileSettingsScreen> createState() => _ProfileSettingsScreenState();
 }
 
+const String _appVersion = '1.0.0+1';
+const String _appDeveloper = 'AmosStack';
+
 class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
@@ -351,6 +354,19 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           subtitle: strings.safetyNoteSubtitle,
           child: Text(strings.sosExplanation),
         ),
+        const SizedBox(height: 14),
+        _SectionCard(
+          title: strings.about,
+          subtitle: strings.aboutSubtitle,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _InfoRow(label: strings.developer, value: _appDeveloper),
+              const SizedBox(height: 10),
+              _InfoRow(label: strings.appVersion, value: _appVersion),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -362,6 +378,33 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     _phoneController.dispose();
     _bioController.dispose();
     super.dispose();
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
+    final valueColor = isDark ? Colors.white : Colors.black;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: labelColor)),
+        ),
+        Expanded(
+          child: Text(value, style: TextStyle(fontWeight: FontWeight.w800, color: valueColor)),
+        ),
+      ],
+    );
   }
 }
 
