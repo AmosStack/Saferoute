@@ -785,7 +785,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     }
 
     if (currentPoint != null) {
-      final nearDestination = _recorderService.isNearDestination(widget.destination, thresholdMeters: 45);
+      final nearDestination = _recorderService.isNearDestination(widget.destination, thresholdMeters: 5);
       if (nearDestination) {
         _arrivalHitCount += 1;
       } else {
