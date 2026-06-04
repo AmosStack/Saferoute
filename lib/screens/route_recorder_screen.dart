@@ -11,6 +11,7 @@ import '../data/mock_data.dart';
 import '../services/backend_service.dart';
 import '../services/route_recorder_service.dart';
 import '../services/user_settings_service.dart';
+import '../services/route_path_planner_service.dart';
 
 class RouteRecorderScreen extends StatefulWidget {
   const RouteRecorderScreen({
@@ -62,6 +63,12 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   final TextEditingController _incidentDescriptionController = TextEditingController();
   String _incidentType = 'Unsafe road condition';
   final Map<String, int> _safetyScores = <String, int>{};
+
+  // Auto re-route state
+  List<ll.LatLng> _activePlannedRoutePoints = <ll.LatLng>[];
+  DateTime? _lastRerouteTime;
+  static const double _offRouteThresholdMeters = 30.0;
+  static final Duration _rerouteCooldown = const Duration(seconds: 8);
 
   static const String _sosIncidentType = 'SOS';
 
@@ -313,6 +320,85 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       _showUserLocation = true;
     });
     await _moveCamera(widget.startPoint, zoom: 16.0);
+  }
+
+  double _distancePointToSegmentMeters(ll.LatLng p, ll.LatLng a, ll.LatLng b) {
+    // Equirectangular approximation in meters for small distances
+    const R = 6371000.0;
+    final meanLat = ((a.latitude + b.latitude) / 2.0) * (math.pi / 180.0);
+
+    final ax = a.longitude * (math.pi / 180.0) * (R * math.cos(meanLat));
+    final ay = a.latitude * (math.pi / 180.0) * R;
+    final bx = b.longitude * (math.pi / 180.0) * (R * math.cos(meanLat));
+    final by = b.latitude * (math.pi / 180.0) * R;
+    final px = p.longitude * (math.pi / 180.0) * (R * math.cos(meanLat));
+    final py = p.latitude * (math.pi / 180.0) * R;
+
+    final vx = bx - ax;
+    final vy = by - ay;
+    final wx = px - ax;
+    final wy = py - ay;
+    final c1 = vx * wx + vy * wy;
+    final c2 = vx * vx + vy * vy;
+    double t = 0.0;
+    if (c2 > 0) t = c1 / c2;
+    t = t.clamp(0.0, 1.0);
+    final projx = ax + t * vx;
+    final projy = ay + t * vy;
+    final dx = px - projx;
+    final dy = py - projy;
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  double _minDistanceToPlanned(ll.LatLng point, List<ll.LatLng> planned) {
+    if (planned.isEmpty) return double.infinity;
+    if (planned.length == 1) return _distanceMeters(point, planned.first);
+    var minDist = double.infinity;
+    for (var i = 1; i < planned.length; i++) {
+      final a = planned[i - 1];
+      final b = planned[i];
+      final d = _distancePointToSegmentMeters(point, a, b);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  Future<void> _autoReroute(ll.LatLng currentPoint) async {
+    final now = DateTime.now();
+    if (_lastRerouteTime != null && now.difference(_lastRerouteTime!) < _rerouteCooldown) return;
+    _lastRerouteTime = now;
+
+    try {
+      final segments = await RoutePathPlannerService.calculatePath(currentPoint, widget.destination, widget.transportMode);
+      if (segments == null || segments.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Re-route failed')));
+        return;
+      }
+
+      // Flatten segments into a single point list, avoiding duplicate junction points
+      final List<ll.LatLng> pts = <ll.LatLng>[];
+      for (final seg in segments) {
+        for (final p in seg.points) {
+          if (pts.isEmpty) {
+            pts.add(p);
+          } else {
+            final last = pts.last;
+            if ((last.latitude - p.latitude).abs() > 0.000001 || (last.longitude - p.longitude).abs() > 0.000001) {
+              pts.add(p);
+            }
+          }
+        }
+      }
+
+      if (pts.length > 1) {
+        setState(() {
+          _activePlannedRoutePoints = pts;
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Re-routed for deviation')));
+      }
+    } catch (e) {
+      debugPrint('Auto reroute error: $e');
+    }
   }
 
   Future<void> _cancelRoute() async {
@@ -796,6 +882,15 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
         _hasArrivedNotified = true;
         _showArrivalForm();
       }
+
+      // Off-route detection and auto re-route
+      final activePlanned = _activePlannedRoutePoints.isNotEmpty ? _activePlannedRoutePoints : widget.plannedRoutePoints;
+      if (activePlanned.isNotEmpty) {
+        final minDist = _minDistanceToPlanned(currentPoint, activePlanned);
+        if (minDist > _offRouteThresholdMeters) {
+          _autoReroute(currentPoint);
+        }
+      }
     }
 
     setState(() {});
@@ -833,8 +928,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     // Split planned route into already-traveled and remaining segments
     final List<gmaps.LatLng> plannedTraveled = <gmaps.LatLng>[];
     final List<gmaps.LatLng> plannedRemaining = <gmaps.LatLng>[];
-    if (widget.plannedRoutePoints.length > 1) {
-      final planned = widget.plannedRoutePoints;
+    final planned = _activePlannedRoutePoints.isNotEmpty ? _activePlannedRoutePoints : widget.plannedRoutePoints;
+    if (planned.length > 1) {
       if (currentPoint != null) {
         var minIdx = 0;
         var minDist = double.infinity;
