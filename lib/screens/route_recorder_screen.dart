@@ -1097,7 +1097,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                 children: [
                   FloatingActionButton.extended(
                     onPressed: _showSosSheet,
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: const Color.fromARGB(255, 2, 187, 33),
                     icon: const Icon(Icons.sos),
                     label: const Text('SOS'),
                   ),
@@ -1106,7 +1106,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                     onPressed: _showIncidentDialog,
                     backgroundColor: Colors.red,
                     icon: const Icon(Icons.report_problem),
-                    label: const Text('Report issue'),
+                    label: const Text('Report'),
                   ),
                 ],
               ),
