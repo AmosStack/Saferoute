@@ -666,7 +666,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                           _consentAccepted = accepted;
                         });
                       },
-                      title: const Text('I consent to share this travel diary for research and safety analysis.'),
+                      title: const Text('I consent to share this travel diary for safety analysis.'),
                       controlAffinity: ListTileControlAffinity.leading,
                     ),
                     const SizedBox(height: 12),
@@ -951,7 +951,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRecording ? 'Recording route' : 'Route paused'),
+        title: Text(isRecording ? 'Route on progress' : 'Route paused'),
         actions: [
           TextButton.icon(
             onPressed: _cancelRoute,
