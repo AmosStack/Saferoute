@@ -384,7 +384,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     if (selectedMode != null && selectedMode.isNotEmpty) {
       candidateModes.add(selectedMode);
     }
-    candidateModes.addAll(<String>['car', 'bicycle', 'walking']);
+    candidateModes.addAll(<String>['car', 'motorcycle', 'walking']);
     if (hasBusStops) candidateModes.add('bus');
 
     final uniqueModes = <String>[];
@@ -393,8 +393,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
 
     final labels = <String, String>{
-      'car': 'Fastest road',
-      'bicycle': 'Balanced',
+      'car': 'Taxi',
+      'Motorcycle': 'Fastest road',
       'walking': 'Eco walk',
       'bus': 'Bus friendly',
     };
@@ -422,7 +422,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
 
     while (options.length < 3) {
-      final mode = ['car', 'bicycle', 'walking'][options.length % 3];
+      final mode = ['car', 'motorcycle', 'walking'][options.length % 3];
       final segments = [_fallbackSegment(start, destination, mode)];
       options.add(
         _RouteOption(
@@ -586,8 +586,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               children: [
                 Text('Search origin and destination', style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
                 const SizedBox(height: 4),
-                Text('Choose transport mode from the home screen before opening the map.', style: TextStyle(fontSize: 12, color: isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.62))),
-                const SizedBox(height: 10),
+                
                 _buildTopFields(surfaceColor),
               ],
             ),
@@ -656,15 +655,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   children: [
                     const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                     const SizedBox(width: 8),
-                    Text('Building routes...', style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black)),
+                    Text('Searching routes...', style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black)),
                   ],
                 ),
               )
             : Text(
                 _start == null
-                    ? 'Tap/search origin'
+                    ? 'search origin'
                     : _destination == null
-                        ? 'Tap/search destination'
+                        ? 'search destination'
                         : _routeOptions.isNotEmpty
                             ? 'Choose one of ${_routeOptions.length} route options'
                             : 'Ready to build route options',
@@ -740,7 +739,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         child: FilledButton.icon(
           onPressed: canConfirm ? _showConfirmSheet : null,
           icon: const Icon(Icons.play_arrow),
-          label: const Text('Start selected route'),
+          label: const Text('Start route'),
         ),
       ),
     );
