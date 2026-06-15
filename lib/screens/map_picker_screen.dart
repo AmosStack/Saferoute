@@ -1,11 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as ll;
 
+import '../services/google_maps_api_service.dart';
 import '../services/route_path_planner_service.dart';
 import 'route_recorder_screen.dart';
 
@@ -177,53 +175,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Future<_PlaceResult?> _geocodeLocation(String query) async {
-    if (query.trim().isEmpty) return null;
-
-    final uri = Uri.parse('https://nominatim.openstreetmap.org/search').replace(
-      queryParameters: {'format': 'json', 'q': query, 'limit': '1'},
-    );
-
-    try {
-      final resp = await http.get(uri, headers: {'User-Agent': 'SafeRouteDev/0.1'});
-      if (resp.statusCode != 200) return null;
-
-      final List<dynamic> data = json.decode(resp.body) as List<dynamic>;
-      if (data.isEmpty) return null;
-
-      final item = data.first as Map<String, dynamic>;
-      final lat = double.tryParse(item['lat']?.toString() ?? '');
-      final lon = double.tryParse(item['lon']?.toString() ?? '');
-      if (lat == null || lon == null) return null;
-
-      final fullName = (item['display_name']?.toString() ?? query).trim();
-      final name = fullName.split(',').first.trim();
-
-      return _PlaceResult(point: ll.LatLng(lat, lon), name: name.isEmpty ? query : name);
-    } catch (_) {
-      return null;
-    }
+    final result = await GoogleMapsApiService.geocode(query);
+    if (result == null) return null;
+    return _PlaceResult(point: result.point, name: result.name);
   }
 
   Future<String?> _reverseGeocodeName(ll.LatLng point) async {
-    final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse').replace(
-      queryParameters: {
-        'format': 'json',
-        'lat': point.latitude.toString(),
-        'lon': point.longitude.toString(),
-      },
-    );
-
-    try {
-      final resp = await http.get(uri, headers: {'User-Agent': 'SafeRouteDev/0.1'});
-      if (resp.statusCode != 200) return null;
-
-      final data = json.decode(resp.body) as Map<String, dynamic>;
-      final displayName = data['display_name']?.toString();
-      if (displayName == null || displayName.trim().isEmpty) return null;
-      return displayName.split(',').first.trim();
-    } catch (_) {
-      return null;
-    }
+    return GoogleMapsApiService.reverseGeocodeName(point);
   }
 
   Future<void> _moveCamera(ll.LatLng target, {double zoom = 16.0}) async {
