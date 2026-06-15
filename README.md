@@ -61,7 +61,15 @@ The PostgreSQL-backed server lives in [backend/README.md](backend/README.md). It
 ## Notes
 
 - Routes are stored with both location names (e.g., "Home", "City Center") and precise GPS coordinates.
-- Location names are geocoded using OpenStreetMap's Nominatim service to resolve them into coordinates for routing.
+- Location names and routes are resolved using Google Maps APIs.
+
+### Google Maps API key
+
+SafeRoute uses Google Maps for map display, geocoding, reverse geocoding, routing, and nearby bus-stop lookup. Keep the key out of source control:
+
+- Android native map SDK: add `GOOGLE_MAPS_API_KEY=your_key_here` to `android/local.properties`.
+- iOS native map SDK: copy `ios/Flutter/GoogleMapsApiKey.xcconfig.example` to `ios/Flutter/GoogleMapsApiKey.xcconfig` and set the same key.
+- Dart Google web-service calls: run Flutter with `--dart-define=GOOGLE_MAPS_API_KEY=your_key_here`.
 - The current build uses mock data for the home screen recommendations and an illustrated map preview.
 - Replace the placeholder emergency contacts and route data with local production sources before release.
 - Ensure the PostgreSQL database is running with the schema initialized (see [backend/README.md](backend/README.md)).
