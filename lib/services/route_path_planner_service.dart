@@ -1,8 +1,8 @@
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
-import 'dart:convert';
+
+import 'google_maps_api_service.dart';
 
 /// Represents a segment of a journey with a specific transport mode
 class PathSegment {
@@ -23,34 +23,8 @@ class PathSegment {
       'PathSegment($transportMode, ${points.length} points, ${distance.toStringAsFixed(0)}m, ${(duration / 60).toStringAsFixed(0)}min)';
 }
 
-/// Bus stop location
-class BusStop {
-  BusStop({
-    required this.latitude,
-    required this.longitude,
-    required this.name,
-  });
-
-  final double latitude;
-  final double longitude;
-  final String name;
-
-  LatLng get location => LatLng(latitude, longitude);
-
-  factory BusStop.fromOSM(Map<String, dynamic> json) {
-    return BusStop(
-      latitude: double.parse(json['lat']?.toString() ?? '0'),
-      longitude: double.parse(json['lon']?.toString() ?? '0'),
-      name: json['name'] ?? json['display_name'] ?? 'Bus Stop',
-    );
-  }
-}
-
 /// Route planner that supports multi-modal transport including buses
 class RoutePathPlannerService {
-  static const String _osrmUrl = 'http://router.project-osrm.org/route/v1';
-  static const String _nominatimUrl = 'https://nominatim.openstreetmap.org/search';
-
   static const Map<String, double> _fallbackSpeedMps = {
     'walking': 1.4,
     'bicycle': 4.5,
@@ -63,7 +37,7 @@ class RoutePathPlannerService {
   };
 
   /// Calculate a path based on transport mode
-  /// For bus: returns walk -> bus -> walk segments
+  /// For bus: uses Google transit directions with bus preference.
   /// For others: returns a single segment with the calculated route
   static Future<List<PathSegment>?> calculatePath(
     LatLng start,
@@ -95,40 +69,27 @@ class RoutePathPlannerService {
     }
   }
 
-  /// Calculate a single-segment route using OSRM
+  /// Calculate a single-segment route using Google Directions API.
   static Future<List<PathSegment>?> _calculateRoute(
     LatLng start,
     LatLng destination,
     String profile,
   ) async {
     try {
-      final uri = Uri.parse(
-        '$_osrmUrl/$profile/${start.longitude},${start.latitude};${destination.longitude},${destination.latitude}',
-      ).replace(queryParameters: {
-        'overview': 'full',
-        'geometries': 'geojson',
-      });
-
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) return null;
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final routes = data['routes'] as List?;
-      if (routes == null || routes.isEmpty) return null;
-
-      final route = routes.first as Map<String, dynamic>;
-        final points = _decodeRoutePoints(route['geometry']);
-        if (points.length < 2) return null;
-
-      final distance = (route['distance'] as num?)?.toDouble() ?? 0.0;
-        final duration = _routeDurationSeconds(route['duration'], points, _profileToMode(profile));
+      final transportMode = _profileToMode(profile);
+      final route = await GoogleMapsApiService.directions(
+        start: start,
+        destination: destination,
+        transportMode: transportMode,
+      );
+      if (route == null || route.points.length < 2) return null;
 
       return [
         PathSegment(
-          transportMode: _profileToMode(profile),
-          points: points,
-          distance: distance,
-          duration: duration,
+          transportMode: transportMode,
+          points: route.points,
+          distance: route.distanceMeters,
+          duration: _routeDurationSeconds(route.durationSeconds, route.points, transportMode),
         ),
       ];
     } catch (e) {
@@ -166,114 +127,14 @@ class RoutePathPlannerService {
     return _estimateDurationSeconds(points, transportMode);
   }
 
-  static List<LatLng> _decodeRoutePoints(Object? geometry) {
-    if (geometry is Map) {
-      final coordinates = geometry['coordinates'];
-      if (coordinates is List) {
-        return coordinates
-            .whereType<List>()
-            .where((coord) => coord.length >= 2)
-            .map((coord) {
-              final lon = (coord[0] as num).toDouble();
-              final lat = (coord[1] as num).toDouble();
-              return LatLng(lat, lon);
-            })
-            .toList();
-      }
-    }
-
-    return const <LatLng>[];
-  }
-
-  /// Calculate a multi-segment bus path:
-  /// 1. Walk from start to nearest bus stop
-  /// 2. Bus from stop A to stop B
-  /// 3. Walk from bus stop to destination
   static Future<List<PathSegment>?> _calculateBusPath(
     LatLng start,
     LatLng destination,
   ) async {
     try {
-      // Find nearest bus stops
-      final nearestStartStop = await _findNearestBusStop(start);
-      final nearestDestStop = await _findNearestBusStop(destination);
-
-      if (nearestStartStop == null || nearestDestStop == null) {
-        debugPrint('Could not find bus stops, falling back to driving');
-        return await _calculateRoute(start, destination, 'driving');
-      }
-
-      final segments = <PathSegment>[];
-
-      // Segment 1: Walk from start to bus stop
-      final walkToStop =
-          await _calculateRoute(start, nearestStartStop.location, 'foot');
-      if (walkToStop != null && walkToStop.isNotEmpty) {
-        segments.add(walkToStop.first);
-      }
-
-      // Segment 2: Bus ride (use driving profile as proxy for bus route)
-      final busRide = await _calculateRoute(
-        nearestStartStop.location,
-        nearestDestStop.location,
-        'driving',
-      );
-      if (busRide != null && busRide.isNotEmpty) {
-        // Change the transport mode to 'bus'
-        final busSegment = busRide.first;
-        segments.add(
-          PathSegment(
-            transportMode: 'bus',
-            points: busSegment.points,
-            distance: busSegment.distance,
-            duration: busSegment.duration,
-          ),
-        );
-      }
-
-      // Segment 3: Walk from bus stop to destination
-      final walkFromStop =
-          await _calculateRoute(nearestDestStop.location, destination, 'foot');
-      if (walkFromStop != null && walkFromStop.isNotEmpty) {
-        segments.add(walkFromStop.first);
-      }
-
-      return segments.isNotEmpty ? segments : null;
+      return await _calculateRoute(start, destination, 'transit_bus');
     } catch (e) {
       debugPrint('Error calculating bus path: $e');
-      return null;
-    }
-  }
-
-  /// Find the nearest bus stop to a given location
-  static Future<BusStop?> _findNearestBusStop(
-    LatLng location, {
-    int radiusMeters = 500,
-  }) async {
-    try {
-      // Search for bus stops near the location using Nominatim
-      final uri = Uri.parse(_nominatimUrl).replace(queryParameters: {
-        'format': 'json',
-        'q': 'amenity=bus_stop',
-        'lat': location.latitude.toString(),
-        'lon': location.longitude.toString(),
-        'radius': radiusMeters.toString(),
-        'limit': '1',
-      });
-
-      final response = await http.get(
-        uri,
-        headers: {'User-Agent': 'SafeRoute/1.0'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode != 200) return null;
-
-      final List data = jsonDecode(response.body) as List;
-      if (data.isEmpty) return null;
-
-      return BusStop.fromOSM(data.first as Map<String, dynamic>);
-    } catch (e) {
-      debugPrint('Error finding bus stop: $e');
       return null;
     }
   }
@@ -283,11 +144,10 @@ class RoutePathPlannerService {
     LatLng location, {
     int radiusMeters = 700,
   }) async {
-    final stop = await _findNearestBusStop(location, radiusMeters: radiusMeters);
-    return stop != null;
+    return GoogleMapsApiService.hasNearbyBusStop(location, radiusMeters: radiusMeters);
   }
 
-  /// Convert OSRM profile to transport mode
+  /// Convert legacy profile names to transport modes used by Google Directions.
   static String _profileToMode(String profile) {
     switch (profile) {
       case 'foot':
@@ -295,8 +155,9 @@ class RoutePathPlannerService {
       case 'bike':
         return 'bicycle';
       case 'driving':
+      case 'transit_bus':
       default:
-        return 'driving';
+        return profile == 'transit_bus' ? 'bus' : 'driving';
     }
   }
 }
