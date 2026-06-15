@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Google Maps key used by iOS native build settings.
+/ios/Flutter/GoogleMapsApiKey.xcconfig
