@@ -1,14 +1,13 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/mock_data.dart';
 import '../services/backend_service.dart';
+import '../services/google_maps_api_service.dart';
 import '../services/route_recorder_service.dart';
 import '../services/user_settings_service.dart';
 import '../services/route_path_planner_service.dart';
@@ -253,24 +252,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   }
 
   Future<String?> _reverseGeocode(ll.LatLng point) async {
-    final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse').replace(
-      queryParameters: {
-        'format': 'json',
-        'lat': point.latitude.toString(),
-        'lon': point.longitude.toString(),
-      },
-    );
-
-    try {
-      final resp = await http.get(uri, headers: {'User-Agent': 'SafeRouteDev/0.1'});
-      if (resp.statusCode != 200) return null;
-      final data = json.decode(resp.body) as Map<String, dynamic>;
-      final displayName = data['display_name']?.toString();
-      if (displayName == null || displayName.trim().isEmpty) return null;
-      return displayName.split(',').first.trim();
-    } catch (_) {
-      return null;
-    }
+    return GoogleMapsApiService.reverseGeocodeName(point);
   }
 
   Future<int?> _createLocationRecord(
