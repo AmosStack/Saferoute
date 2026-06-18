@@ -17,21 +17,6 @@ const _transportModes = <String>[
   'Tricycle',
 ];
 
-const _primaryTransportCards = <_TransportCardData>[
-  _TransportCardData(label: 'Walking', icon: Icons.directions_walk, mode: 'walking'),
-  _TransportCardData(label: 'Bicycle', icon: Icons.pedal_bike, mode: 'bicycle'),
-  _TransportCardData(label: 'Car', icon: Icons.directions_car, mode: 'car'),
-  _TransportCardData(label: 'Bus', icon: Icons.directions_bus, mode: 'bus'),
-];
-
-class _TransportCardData {
-  const _TransportCardData({required this.label, required this.icon, required this.mode});
-
-  final String label;
-  final IconData icon;
-  final String mode;
-}
-
 class _PlaceResult {
   const _PlaceResult({required this.point, required this.name});
 
@@ -54,8 +39,10 @@ class _RouteOption {
   final bool hasBusStopsNearEndpoints;
   final double safetyScore;
 
-  double get totalDistance => segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
-  int get totalDuration => segments.fold<int>(0, (sum, segment) => sum + segment.duration);
+  double get totalDistance =>
+      segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
+  int get totalDuration =>
+      segments.fold<int>(0, (sum, segment) => sum + segment.duration);
   int get safetyAdjustedDuration {
     final boundedSafety = safetyScore.clamp(0.0, 100.0);
     final riskRatio = (100.0 - boundedSafety) / 100.0;
@@ -84,7 +71,12 @@ class _RouteOption {
 }
 
 class MapPickerScreen extends StatefulWidget {
-  const MapPickerScreen({super.key, this.userId, this.embedded = false, this.initialTransportMode});
+  const MapPickerScreen({
+    super.key,
+    this.userId,
+    this.embedded = false,
+    this.initialTransportMode,
+  });
 
   final int? userId;
   final bool embedded;
@@ -110,9 +102,12 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   int? _selectedRouteIndex;
   String? _selectedTransportMode;
 
-  gmaps.LatLng _toGoogleLatLng(ll.LatLng point) => gmaps.LatLng(point.latitude, point.longitude);
+  gmaps.LatLng _toGoogleLatLng(ll.LatLng point) =>
+      gmaps.LatLng(point.latitude, point.longitude);
 
-  String _formatDistance(double meters) => meters < 1000 ? '${meters.toStringAsFixed(0)} m' : '${(meters / 1000).toStringAsFixed(2)} km';
+  String _formatDistance(double meters) => meters < 1000
+      ? '${meters.toStringAsFixed(0)} m'
+      : '${(meters / 1000).toStringAsFixed(2)} km';
 
   String _formatDuration(int seconds) {
     final mins = seconds ~/ 60;
@@ -121,15 +116,19 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return hrs == 0 ? '$mins min' : '${hrs}h ${remMins}m';
   }
 
-  
-
   double _scoreRoute({
     required List<PathSegment> segments,
     required bool hasBusStops,
     required String hint,
   }) {
-    final totalDistance = segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
-    final totalDuration = segments.fold<int>(0, (sum, segment) => sum + segment.duration);
+    final totalDistance = segments.fold<double>(
+      0.0,
+      (sum, segment) => sum + segment.distance,
+    );
+    final totalDuration = segments.fold<int>(
+      0,
+      (sum, segment) => sum + segment.duration,
+    );
 
     var score = 100.0;
     score -= totalDuration / 90.0;
@@ -152,7 +151,11 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return score.clamp(0, 100).toDouble();
   }
 
-  PathSegment _fallbackSegment(ll.LatLng start, ll.LatLng destination, String mode) {
+  PathSegment _fallbackSegment(
+    ll.LatLng start,
+    ll.LatLng destination,
+    String mode,
+  ) {
     final distanceCalc = ll.Distance();
     final dist = distanceCalc(start, destination);
     final speedMps = switch (mode) {
@@ -204,7 +207,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     if (target != null) {
       controller.animateCamera(
         gmaps.CameraUpdate.newCameraPosition(
-          gmaps.CameraPosition(target: _toGoogleLatLng(target), zoom: _pendingCameraZoom),
+          gmaps.CameraPosition(
+            target: _toGoogleLatLng(target),
+            zoom: _pendingCameraZoom,
+          ),
         ),
       );
     }
@@ -216,7 +222,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
     setState(() {
       _start = point;
-      _originController.text = resolvedName?.isNotEmpty == true ? resolvedName! : 'Selected location';
+      _originController.text = resolvedName?.isNotEmpty == true
+          ? resolvedName!
+          : 'Selected location';
       _routeOptions = const [];
       _bestRouteIndex = null;
       _selectedRouteIndex = null;
@@ -234,7 +242,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
     setState(() {
       _destination = point;
-      _destinationController.text = resolvedName?.isNotEmpty == true ? resolvedName! : 'Selected location';
+      _destinationController.text = resolvedName?.isNotEmpty == true
+          ? resolvedName!
+          : 'Selected location';
       _routeOptions = const [];
       _bestRouteIndex = null;
       _selectedRouteIndex = null;
@@ -251,7 +261,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     final found = await _geocodeLocation(query);
     if (found == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not find the origin location')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not find the origin location')),
+        );
       }
       return;
     }
@@ -265,7 +277,11 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     final found = await _geocodeLocation(query);
     if (found == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not find the destination location')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not find the destination location'),
+          ),
+        );
       }
       return;
     }
@@ -293,7 +309,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     final userLatLng = ll.LatLng(pos.latitude, pos.longitude);
     final resolvedName = await _reverseGeocodeName(userLatLng);
     await _moveCamera(userLatLng, zoom: 16.0);
-    await _setOrigin(userLatLng, preferredName: resolvedName ?? 'Current location');
+    await _setOrigin(
+      userLatLng,
+      preferredName: resolvedName ?? 'Current location',
+    );
 
     if (!mounted) return;
     setState(() {
@@ -334,7 +353,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     });
 
     final busNearStart = await RoutePathPlannerService.hasNearbyBusStop(start);
-    final busNearDestination = await RoutePathPlannerService.hasNearbyBusStop(destination);
+    final busNearDestination = await RoutePathPlannerService.hasNearbyBusStop(
+      destination,
+    );
     final hasBusStops = busNearStart || busNearDestination;
 
     final candidateModes = <String>[];
@@ -361,20 +382,28 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
 
     final results = await Future.wait(
-      uniqueModes.map((mode) => RoutePathPlannerService.calculatePath(start, destination, mode)),
+      uniqueModes.map(
+        (mode) =>
+            RoutePathPlannerService.calculatePath(start, destination, mode),
+      ),
     );
 
     final options = <_RouteOption>[];
     for (var i = 0; i < uniqueModes.length; i++) {
       final mode = uniqueModes[i];
-      final segments = results[i] ?? [_fallbackSegment(start, destination, mode)];
+      final segments =
+          results[i] ?? [_fallbackSegment(start, destination, mode)];
       options.add(
         _RouteOption(
           label: labels[mode] ?? 'Alternative ${i + 1}',
           transportHint: mode,
           segments: segments,
           hasBusStopsNearEndpoints: hasBusStops,
-          safetyScore: _scoreRoute(segments: segments, hasBusStops: hasBusStops, hint: mode),
+          safetyScore: _scoreRoute(
+            segments: segments,
+            hasBusStops: hasBusStops,
+            hint: mode,
+          ),
         ),
       );
     }
@@ -388,7 +417,11 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           transportHint: mode,
           segments: segments,
           hasBusStopsNearEndpoints: hasBusStops,
-          safetyScore: _scoreRoute(segments: segments, hasBusStops: hasBusStops, hint: mode),
+          safetyScore: _scoreRoute(
+            segments: segments,
+            hasBusStops: hasBusStops,
+            hint: mode,
+          ),
         ),
       );
     }
@@ -455,21 +488,35 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Confirm Route', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Confirm Route',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 8),
                 Text('From: ${_originController.text.trim()}'),
                 Text('To: ${_destinationController.text.trim()}'),
                 const SizedBox(height: 8),
-                Text('Route: ${option.label}${selectedIndex == _bestRouteIndex ? ' (Safest)' : ''}'),
-                Text('Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100'),
+                Text(
+                  'Route: ${option.label}${selectedIndex == _bestRouteIndex ? ' (Safest)' : ''}',
+                ),
+                Text(
+                  'Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100',
+                ),
                 Text('Distance: ${_formatDistance(option.totalDistance)}'),
                 Text('Base duration: ${_formatDuration(option.totalDuration)}'),
-                Text('Safety-adjusted ETA: ${_formatDuration(option.safetyAdjustedDuration)}'),
                 Text(
-                  option.hasBusStopsNearEndpoints ? 'Bus stops: available near endpoints' : 'Bus stops: not detected near endpoints',
+                  'Safety-adjusted ETA: ${_formatDuration(option.safetyAdjustedDuration)}',
+                ),
+                Text(
+                  option.hasBusStopsNearEndpoints
+                      ? 'Bus stops: available near endpoints'
+                      : 'Bus stops: not detected near endpoints',
                 ),
                 const SizedBox(height: 12),
-                const Text('Available transportation modes', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Available transportation modes',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -503,8 +550,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                 builder: (context) => RouteRecorderScreen(
                                   startPoint: _start!,
                                   destination: _destination!,
-                                  startLocationName: _originController.text.trim(),
-                                  endLocationName: _destinationController.text.trim(),
+                                  startLocationName: _originController.text
+                                      .trim(),
+                                  endLocationName: _destinationController.text
+                                      .trim(),
                                   transportMode: _selectedTransportMode!,
                                   plannedRoutePoints: option.points,
                                   plannedRouteLabel: option.label,
@@ -527,7 +576,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   Widget _buildTopPanel(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white;
+    final surfaceColor = isDark
+        ? Theme.of(context).colorScheme.surfaceContainerHighest
+        : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -542,9 +593,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Search origin and destination', style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
+                Text(
+                  'Search origin and destination',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                
+
                 _buildTopFields(surfaceColor),
               ],
             ),
@@ -568,9 +625,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             decoration: InputDecoration(
               hintText: 'Origin location name',
               prefixIcon: const Icon(Icons.trip_origin),
-              suffixIcon: IconButton(onPressed: _resolveOrigin, icon: const Icon(Icons.search)),
+              suffixIcon: IconButton(
+                onPressed: _resolveOrigin,
+                icon: const Icon(Icons.search),
+              ),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
             ),
             onSubmitted: (_) => _resolveOrigin(),
           ),
@@ -586,9 +649,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             decoration: InputDecoration(
               hintText: 'Destination location name',
               prefixIcon: const Icon(Icons.place),
-              suffixIcon: IconButton(onPressed: _resolveDestination, icon: const Icon(Icons.search)),
+              suffixIcon: IconButton(
+                onPressed: _resolveDestination,
+                icon: const Icon(Icons.search),
+              ),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
             ),
             onSubmitted: (_) => _resolveDestination(),
           ),
@@ -602,7 +671,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return Material(
       elevation: 2,
       borderRadius: BorderRadius.circular(999),
-      color: isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.92),
+      color: isDark
+          ? Theme.of(context).colorScheme.surfaceContainerHighest
+          : Colors.white.withValues(alpha: 0.92),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: _isLoadingSuggestions
@@ -611,9 +682,19 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                     const SizedBox(width: 8),
-                    Text('Searching routes...', style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black)),
+                    Text(
+                      'Searching routes...',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -621,11 +702,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 _start == null
                     ? 'search origin'
                     : _destination == null
-                        ? 'search destination'
-                        : _routeOptions.isNotEmpty
-                            ? 'Choose one of ${_routeOptions.length} route options'
-                            : 'Ready to build route options',
-                style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black),
+                    ? 'search destination'
+                    : _routeOptions.isNotEmpty
+                    ? 'Choose one of ${_routeOptions.length} route options'
+                    : 'Ready to build route options',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
               ),
       ),
     );
@@ -635,7 +719,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     if (_routeOptions.isEmpty) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.96);
+    final surfaceColor = isDark
+        ? Theme.of(context).colorScheme.surfaceContainerHighest
+        : Colors.white.withValues(alpha: 0.96);
     final textColor = isDark ? Colors.white : Colors.black;
 
     return Material(
@@ -648,7 +734,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Route Suggestions', style: TextStyle(fontWeight: FontWeight.w700, color: textColor)),
+            Text(
+              'Route Suggestions',
+              style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
+            ),
             const SizedBox(height: 8),
             for (var i = 0; i < _routeOptions.length; i++)
               InkWell(
@@ -660,22 +749,41 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _selectedRouteIndex == i ? Colors.blueAccent : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.grey.shade300)),
+                    border: Border.all(
+                      color: _selectedRouteIndex == i
+                          ? Colors.blueAccent
+                          : (isDark
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : Colors.grey.shade300),
+                    ),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           '${_routeOptions[i].label}${_bestRouteIndex == i ? ' (Safest)' : ''}',
-                          style: TextStyle(fontWeight: _bestRouteIndex == i ? FontWeight.w700 : FontWeight.w500, color: textColor),
+                          style: TextStyle(
+                            fontWeight: _bestRouteIndex == i
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: textColor,
+                          ),
                         ),
                       ),
                       Text(
                         'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)} • ETA ${_formatDuration(_routeOptions[i].safetyAdjustedDuration)} (base ${_formatDuration(_routeOptions[i].totalDuration)})',
-                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white.withValues(alpha: 0.72) : null),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.72)
+                              : null,
+                        ),
                       ),
                     ],
                   ),
@@ -688,7 +796,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Widget _buildBottomActions() {
-    final canConfirm = _start != null && _destination != null && _routeOptions.isNotEmpty;
+    final canConfirm =
+        _start != null && _destination != null && _routeOptions.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.all(12.0),
@@ -712,7 +821,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             target: _toGoogleLatLng(_start ?? ll.LatLng(0, 0)),
             zoom: _start == null ? 2.0 : 16.0,
           ),
-          onTap: (latlng) => _onTap(ll.LatLng(latlng.latitude, latlng.longitude)),
+          onTap: (latlng) =>
+              _onTap(ll.LatLng(latlng.latitude, latlng.longitude)),
           myLocationEnabled: _canShowUserLocation,
           myLocationButtonEnabled: _canShowUserLocation,
           zoomControlsEnabled: false,
@@ -722,18 +832,26 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               gmaps.Marker(
                 markerId: const gmaps.MarkerId('start'),
                 position: _toGoogleLatLng(_start!),
-                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueGreen),
+                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                  gmaps.BitmapDescriptor.hueGreen,
+                ),
                 infoWindow: gmaps.InfoWindow(
-                  title: _originController.text.trim().isEmpty ? 'Origin' : _originController.text.trim(),
+                  title: _originController.text.trim().isEmpty
+                      ? 'Origin'
+                      : _originController.text.trim(),
                 ),
               ),
             if (_destination != null)
               gmaps.Marker(
                 markerId: const gmaps.MarkerId('destination'),
                 position: _toGoogleLatLng(_destination!),
-                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueRed),
+                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                  gmaps.BitmapDescriptor.hueRed,
+                ),
                 infoWindow: gmaps.InfoWindow(
-                  title: _destinationController.text.trim().isEmpty ? 'Destination' : _destinationController.text.trim(),
+                  title: _destinationController.text.trim().isEmpty
+                      ? 'Destination'
+                      : _destinationController.text.trim(),
                 ),
               ),
           },
@@ -741,13 +859,18 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             for (var index = 0; index < _routeOptions.length; index++)
               gmaps.Polyline(
                 polylineId: gmaps.PolylineId('option_$index'),
-                points: _routeOptions[index].points.map(_toGoogleLatLng).toList(),
-                width: (_selectedRouteIndex == index || _bestRouteIndex == index) ? 5 : 3,
+                points: _routeOptions[index].points
+                    .map(_toGoogleLatLng)
+                    .toList(),
+                width:
+                    (_selectedRouteIndex == index || _bestRouteIndex == index)
+                    ? 5
+                    : 3,
                 color: _selectedRouteIndex == index
                     ? Colors.blueAccent
                     : (_bestRouteIndex == index
-                        ? const Color(0xFF0E7C7B).withValues(alpha: 0.95)
-                        : Colors.grey.shade500.withValues(alpha: 0.7)),
+                          ? const Color(0xFF0E7C7B).withValues(alpha: 0.95)
+                          : Colors.grey.shade500.withValues(alpha: 0.7)),
               ),
           },
         ),
@@ -765,18 +888,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           ),
         ),
         if (_routeOptions.isNotEmpty)
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 90,
-            child: _buildRouteList(),
-          ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _buildBottomActions(),
-        ),
+          Positioned(left: 12, right: 12, bottom: 90, child: _buildRouteList()),
+        Positioned(left: 0, right: 0, bottom: 0, child: _buildBottomActions()),
       ],
     );
   }
