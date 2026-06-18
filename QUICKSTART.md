@@ -75,13 +75,13 @@ For a physical Android device, keep this active while USB-connected:
 adb reverse tcp:3000 tcp:3000
 ```
 
-For direct phone-to-server connection, run with your computer's LAN IP. The current local fallback is already `192.168.1.20`, so the app can keep talking to Django after USB is disconnected as long as the phone is on the same Wi-Fi:
+For direct phone-to-server connection without USB forwarding, run with your computer's LAN IP:
 
 ```bash
-flutter run --dart-define=SAFE_ROUTE_SERVER_HOST=192.168.1.20
+flutter run --dart-define=SAFE_ROUTE_SERVER_HOST=<your-computer-ip>
 ```
 
-If your PC IP changes, pass the new IP with `SAFE_ROUTE_SERVER_HOST` or set the in-app Backend URL to `http://<new-ip>:3000`.
+If your PC IP changes, pass the new IP with `SAFE_ROUTE_SERVER_HOST`.
 
 For mobile data or a backend in another network/location, local IP addresses will not work. Use a public API URL:
 
