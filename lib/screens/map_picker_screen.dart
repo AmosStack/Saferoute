@@ -812,68 +812,137 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     );
   }
 
+  Widget _buildMapSurface() {
+    if (!GoogleMapsApiService.hasApiKey) {
+      return _buildMapUnavailableSurface();
+    }
+
+    return gmaps.GoogleMap(
+      onMapCreated: _onMapCreated,
+      initialCameraPosition: gmaps.CameraPosition(
+        target: _toGoogleLatLng(_start ?? ll.LatLng(0, 0)),
+        zoom: _start == null ? 2.0 : 16.0,
+      ),
+      onTap: (latlng) => _onTap(ll.LatLng(latlng.latitude, latlng.longitude)),
+      myLocationEnabled: _canShowUserLocation,
+      myLocationButtonEnabled: _canShowUserLocation,
+      zoomControlsEnabled: false,
+      mapToolbarEnabled: false,
+      markers: {
+        if (_start != null)
+          gmaps.Marker(
+            markerId: const gmaps.MarkerId('start'),
+            position: _toGoogleLatLng(_start!),
+            icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+              gmaps.BitmapDescriptor.hueGreen,
+            ),
+            infoWindow: gmaps.InfoWindow(
+              title: _originController.text.trim().isEmpty
+                  ? 'Origin'
+                  : _originController.text.trim(),
+            ),
+          ),
+        if (_destination != null)
+          gmaps.Marker(
+            markerId: const gmaps.MarkerId('destination'),
+            position: _toGoogleLatLng(_destination!),
+            icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+              gmaps.BitmapDescriptor.hueRed,
+            ),
+            infoWindow: gmaps.InfoWindow(
+              title: _destinationController.text.trim().isEmpty
+                  ? 'Destination'
+                  : _destinationController.text.trim(),
+            ),
+          ),
+      },
+      polylines: {
+        for (var index = 0; index < _routeOptions.length; index++)
+          gmaps.Polyline(
+            polylineId: gmaps.PolylineId('option_$index'),
+            points: _routeOptions[index].points.map(_toGoogleLatLng).toList(),
+            width: (_selectedRouteIndex == index || _bestRouteIndex == index)
+                ? 5
+                : 3,
+            color: _selectedRouteIndex == index
+                ? Colors.blueAccent
+                : (_bestRouteIndex == index
+                      ? const Color(0xFF0E7C7B).withValues(alpha: 0.95)
+                      : Colors.grey.shade500.withValues(alpha: 0.7)),
+          ),
+      },
+    );
+  }
+
+  Widget _buildMapUnavailableSurface() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final mutedTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.72)
+        : Colors.black.withValues(alpha: 0.64);
+    final routeSummary = _routeOptions.isEmpty
+        ? 'Search origin and destination to calculate route options.'
+        : '${_routeOptions.length} route options calculated. Start route is available below.';
+
+    return ColoredBox(
+      color: isDark ? const Color(0xFF0B1220) : const Color(0xFFE8F4F2),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 170, 24, 150),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF111827)
+                    : Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.06),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.map_outlined,
+                      size: 42,
+                      color: Color(0xFF0E7C7B),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Map display needs a Google Maps API key',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      routeSummary,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: mutedTextColor, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPage(BuildContext context) {
     return Stack(
       children: [
-        gmaps.GoogleMap(
-          onMapCreated: _onMapCreated,
-          initialCameraPosition: gmaps.CameraPosition(
-            target: _toGoogleLatLng(_start ?? ll.LatLng(0, 0)),
-            zoom: _start == null ? 2.0 : 16.0,
-          ),
-          onTap: (latlng) =>
-              _onTap(ll.LatLng(latlng.latitude, latlng.longitude)),
-          myLocationEnabled: _canShowUserLocation,
-          myLocationButtonEnabled: _canShowUserLocation,
-          zoomControlsEnabled: false,
-          mapToolbarEnabled: false,
-          markers: {
-            if (_start != null)
-              gmaps.Marker(
-                markerId: const gmaps.MarkerId('start'),
-                position: _toGoogleLatLng(_start!),
-                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-                  gmaps.BitmapDescriptor.hueGreen,
-                ),
-                infoWindow: gmaps.InfoWindow(
-                  title: _originController.text.trim().isEmpty
-                      ? 'Origin'
-                      : _originController.text.trim(),
-                ),
-              ),
-            if (_destination != null)
-              gmaps.Marker(
-                markerId: const gmaps.MarkerId('destination'),
-                position: _toGoogleLatLng(_destination!),
-                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
-                  gmaps.BitmapDescriptor.hueRed,
-                ),
-                infoWindow: gmaps.InfoWindow(
-                  title: _destinationController.text.trim().isEmpty
-                      ? 'Destination'
-                      : _destinationController.text.trim(),
-                ),
-              ),
-          },
-          polylines: {
-            for (var index = 0; index < _routeOptions.length; index++)
-              gmaps.Polyline(
-                polylineId: gmaps.PolylineId('option_$index'),
-                points: _routeOptions[index].points
-                    .map(_toGoogleLatLng)
-                    .toList(),
-                width:
-                    (_selectedRouteIndex == index || _bestRouteIndex == index)
-                    ? 5
-                    : 3,
-                color: _selectedRouteIndex == index
-                    ? Colors.blueAccent
-                    : (_bestRouteIndex == index
-                          ? const Color(0xFF0E7C7B).withValues(alpha: 0.95)
-                          : Colors.grey.shade500.withValues(alpha: 0.7)),
-              ),
-          },
-        ),
+        _buildMapSurface(),
         Positioned(
           top: 12,
           left: 12,
