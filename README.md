@@ -21,16 +21,21 @@ flutter run
 
 To connect the app to the backend API, ensure the backend server is running on `http://localhost:3000`.
 
-If you are running on a physical Android phone, start the backend on all interfaces. The app has `192.168.1.20` baked in as the local Wi-Fi fallback, so it can keep working after USB is unplugged:
+If you are running on a physical Android phone, start the backend on all interfaces. While USB is connected, forward the phone's `localhost:3000` to your computer:
 
 ```bash
 cd backend
 python manage.py runserver 0.0.0.0:3000
 
-flutter run --dart-define=SAFE_ROUTE_SERVER_HOST=192.168.1.20
+adb reverse tcp:3000 tcp:3000
+flutter run
 ```
 
-Use your computer's real IP address on the same Wi-Fi network. If the IP changes, run with `--dart-define=SAFE_ROUTE_SERVER_HOST=<new-ip>` or set the in-app Backend URL to `http://<new-ip>:3000`.
+To run without USB forwarding, use your computer's real IP address on the same Wi-Fi network:
+
+```bash
+flutter run --dart-define=SAFE_ROUTE_SERVER_HOST=<your-computer-ip>
+```
 
 For mobile data or a server in another location, deploy the backend to a public HTTPS URL and run/build the app with:
 
@@ -61,7 +66,7 @@ The PostgreSQL-backed server lives in [backend/README.md](backend/README.md). It
 ## Notes
 
 - Routes are stored with both location names (e.g., "Home", "City Center") and precise GPS coordinates.
-- Location names and routes are resolved using Google Maps APIs.
+- Location names and routes use Google Maps APIs when `GOOGLE_MAPS_API_KEY` is provided, with OpenStreetMap/Nominatim and OSRM fallbacks for development.
 
 ### Google Maps API key
 
@@ -69,7 +74,7 @@ SafeRoute uses Google Maps for map display, geocoding, reverse geocoding, routin
 
 - Android native map SDK: add `GOOGLE_MAPS_API_KEY=your_key_here` to `android/local.properties`.
 - iOS native map SDK: copy `ios/Flutter/GoogleMapsApiKey.xcconfig.example` to `ios/Flutter/GoogleMapsApiKey.xcconfig` and set the same key.
-- Dart Google web-service calls: run Flutter with `--dart-define=GOOGLE_MAPS_API_KEY=your_key_here`.
+- Dart Google web-service calls: run Flutter with `--dart-define=GOOGLE_MAPS_API_KEY=your_key_here`. Without this, the app falls back to OpenStreetMap/Nominatim for search and OSRM for route geometry where available.
 - The current build uses mock data for the home screen recommendations and an illustrated map preview.
 - Replace the placeholder emergency contacts and route data with local production sources before release.
 - Ensure the PostgreSQL database is running with the schema initialized (see [backend/README.md](backend/README.md)).
