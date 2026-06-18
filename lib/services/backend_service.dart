@@ -1,14 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 import '../models/recorded_route.dart';
 
 class BackendService {
-  static const Duration _requestTimeout = Duration(seconds: 3);
+  static const Duration _requestTimeout = Duration(seconds: 8);
   static const String _defaultLanFallbackHost = String.fromEnvironment(
     'SAFE_ROUTE_LAN_FALLBACK_HOST',
-    defaultValue: '192.168.1.20',
+    defaultValue: '',
   );
 
   static String _baseUrlFromHost(String hostOrUrl) {
@@ -55,16 +56,22 @@ class BackendService {
 
     if (kIsWeb) {
       _addCandidate(candidates, 'http://localhost:3000');
+      _addCandidate(candidates, 'http://127.0.0.1:3000');
       return candidates;
     }
 
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        _addCandidate(candidates, _baseUrlFromHost(_defaultLanFallbackHost));
         _addCandidate(candidates, 'http://10.0.2.2:3000');
+        _addCandidate(candidates, 'http://localhost:3000');
+        _addCandidate(candidates, 'http://127.0.0.1:3000');
+        if (_defaultLanFallbackHost.trim().isNotEmpty) {
+          _addCandidate(candidates, _baseUrlFromHost(_defaultLanFallbackHost));
+        }
         return candidates;
       default:
         _addCandidate(candidates, 'http://localhost:3000');
+        _addCandidate(candidates, 'http://127.0.0.1:3000');
         return candidates;
     }
   }
@@ -74,10 +81,12 @@ class BackendService {
     Map<String, dynamic> body,
   ) async {
     Object? lastError;
+    final attemptedUrls = <String>[];
 
     for (final baseUrl in _baseUrlCandidates) {
       try {
         final uri = Uri.parse('$baseUrl$path');
+        attemptedUrls.add(uri.toString());
         return await http
             .post(
               uri,
@@ -90,22 +99,30 @@ class BackendService {
       }
     }
 
-    throw Exception(lastError?.toString() ?? 'Unknown connection error');
+    throw Exception(
+      '${lastError?.toString() ?? 'Unknown connection error'} '
+      '(tried: ${attemptedUrls.join(', ')})',
+    );
   }
 
   static Future<http.Response> _getWithFallback(String path) async {
     Object? lastError;
+    final attemptedUrls = <String>[];
 
     for (final baseUrl in _baseUrlCandidates) {
       try {
         final uri = Uri.parse('$baseUrl$path');
+        attemptedUrls.add(uri.toString());
         return await http.get(uri).timeout(_requestTimeout);
       } catch (e) {
         lastError = e;
       }
     }
 
-    throw Exception(lastError?.toString() ?? 'Unknown connection error');
+    throw Exception(
+      '${lastError?.toString() ?? 'Unknown connection error'} '
+      '(tried: ${attemptedUrls.join(', ')})',
+    );
   }
 
   static Future<Map<String, dynamic>> _postJson(
@@ -147,7 +164,7 @@ class BackendService {
     });
 
     if (result['error'] != null) {
-      print('Registration failed: ${result['error']}');
+      debugPrint('Registration failed: ${result['error']}');
     }
 
     return result;
@@ -164,7 +181,7 @@ class BackendService {
     });
 
     if (result['error'] != null) {
-      print('Login failed: ${result['error']}');
+      debugPrint('Login failed: ${result['error']}');
     }
 
     return result;
@@ -177,7 +194,7 @@ class BackendService {
     final result = await _postJson('/auth/google', {'idToken': idToken});
 
     if (result['error'] != null) {
-      print('Google login failed: ${result['error']}');
+      debugPrint('Google login failed: ${result['error']}');
     }
 
     return result;
@@ -221,11 +238,11 @@ class BackendService {
       if (response.statusCode == 200) {
         return true;
       } else {
-        print('Failed to save route: ${response.body}');
+        debugPrint('Failed to save route: ${response.body}');
         return false;
       }
     } catch (e) {
-      print('Error saving route: $e');
+      debugPrint('Error saving route: $e');
       return false;
     }
   }
@@ -245,11 +262,11 @@ class BackendService {
             .toList();
         return routes ?? [];
       } else {
-        print('Failed to fetch routes: ${response.body}');
+        debugPrint('Failed to fetch routes: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error fetching routes: $e');
+      debugPrint('Error fetching routes: $e');
       return null;
     }
   }
@@ -271,11 +288,11 @@ class BackendService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['id'] as String?;
       } else {
-        print('Failed to create route: ${response.body}');
+        debugPrint('Failed to create route: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error creating route: $e');
+      debugPrint('Error creating route: $e');
       return null;
     }
   }
@@ -295,11 +312,11 @@ class BackendService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['id'] as int?;
       } else {
-        print('Failed to create transport mode: ${response.body}');
+        debugPrint('Failed to create transport mode: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error creating transport mode: $e');
+      debugPrint('Error creating transport mode: $e');
       return null;
     }
   }
@@ -325,11 +342,11 @@ class BackendService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['id'] as int?;
       } else {
-        print('Failed to create location: ${response.body}');
+        debugPrint('Failed to create location: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error creating location: $e');
+      debugPrint('Error creating location: $e');
       return null;
     }
   }
@@ -367,11 +384,11 @@ class BackendService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['id'] as int?;
       } else {
-        print('Failed to create travel log: ${response.body}');
+        debugPrint('Failed to create travel log: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error creating travel log: $e');
+      debugPrint('Error creating travel log: $e');
       return null;
     }
   }
@@ -401,11 +418,11 @@ class BackendService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['id'] as int?;
       } else {
-        print('Failed to create safety report: ${response.body}');
+        debugPrint('Failed to create safety report: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error creating safety report: $e');
+      debugPrint('Error creating safety report: $e');
       return null;
     }
   }
@@ -435,11 +452,11 @@ class BackendService {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['id'] as int?;
       } else {
-        print('Failed to create incident: ${response.body}');
+        debugPrint('Failed to create incident: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Error creating incident: $e');
+      debugPrint('Error creating incident: $e');
       return null;
     }
   }
