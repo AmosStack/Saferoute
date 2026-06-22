@@ -543,9 +543,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   child: FilledButton(
                     onPressed: _selectedTransportMode == null
                         ? null
-                        : () {
+                        : () async {
                             Navigator.of(sheetContext).pop();
-                            Navigator.of(context).push(
+                            final result = await Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => RouteRecorderScreen(
                                   startPoint: _start!,
@@ -562,6 +562,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                 ),
                               ),
                             );
+                            if (!mounted || result == null) return;
+                            if (widget.embedded) return;
+                            Navigator.of(context).pop(result);
                           },
                     child: const Text('Start'),
                   ),
@@ -813,10 +816,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Widget _buildMapSurface() {
-    if (!GoogleMapsApiService.hasApiKey) {
-      return _buildMapUnavailableSurface();
-    }
-
     return gmaps.GoogleMap(
       onMapCreated: _onMapCreated,
       initialCameraPosition: gmaps.CameraPosition(
@@ -871,71 +870,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       : Colors.grey.shade500.withValues(alpha: 0.7)),
           ),
       },
-    );
-  }
-
-  Widget _buildMapUnavailableSurface() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final mutedTextColor = isDark
-        ? Colors.white.withValues(alpha: 0.72)
-        : Colors.black.withValues(alpha: 0.64);
-    final routeSummary = _routeOptions.isEmpty
-        ? 'Search origin and destination to calculate route options.'
-        : '${_routeOptions.length} route options calculated. Start route is available below.';
-
-    return ColoredBox(
-      color: isDark ? const Color(0xFF0B1220) : const Color(0xFFE8F4F2),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 170, 24, 150),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF111827)
-                    : Colors.white.withValues(alpha: 0.96),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.black.withValues(alpha: 0.06),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.map_outlined,
-                      size: 42,
-                      color: Color(0xFF0E7C7B),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Map display needs a Google Maps API key',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 17,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      routeSummary,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: mutedTextColor, height: 1.35),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
