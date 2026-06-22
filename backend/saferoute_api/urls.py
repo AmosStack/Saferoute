@@ -32,6 +32,8 @@ urlpatterns = [
     path("dashboard/routes/<uuid:route_id>/", dashboard_views.route_detail),
     path("dashboard/analytics", dashboard_views.analytics, name="analytics"),
     path("dashboard/analytics/", dashboard_views.analytics),
+    path("dashboard/gis", dashboard_views.gis_policy_workspace, name="gis_policy_workspace"),
+    path("dashboard/gis/", dashboard_views.gis_policy_workspace),
     path("health", views.health),
     path("health/", views.health),
     path("auth/register", views.register),
