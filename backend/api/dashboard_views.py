@@ -646,6 +646,62 @@ def _complaint_map_rows(limit: int = 100, scope_sql: str = "1=1", scope_params: 
     return rows
 
 
+def _gis_density_rows(limit: int = 60, scope_sql: str = "1=1", scope_params: list[str] | None = None):
+    scope_params = scope_params or []
+    with connection.cursor() as cursor:
+        scope_where = f"WHERE {scope_sql}" if scope_sql != "1=1" else ""
+        cursor.execute(
+            """
+            SELECT
+                ROUND(((rr.start_latitude + rr.end_latitude) / 2)::numeric, 3) AS latitude,
+                ROUND(((rr.start_longitude + rr.end_longitude) / 2)::numeric, 3) AS longitude,
+                COUNT(*) AS route_count,
+                COALESCE(SUM(rr.distance_meters), 0) AS distance_meters,
+                COALESCE(ROUND(AVG(rr.rating)::numeric, 2), 0) AS average_rating,
+                MAX(rr.transport_mode) AS sample_mode
+            FROM saferoute.recorded_routes rr
+            """ + scope_where + """
+            GROUP BY 1, 2
+            ORDER BY route_count DESC, distance_meters DESC
+            LIMIT %s
+            """,
+            scope_params + [limit],
+        )
+        rows = _dictfetchall(cursor)
+
+    for row in rows:
+        row["latitude"] = _json_ready(row.get("latitude"))
+        row["longitude"] = _json_ready(row.get("longitude"))
+        row["distance_km"] = round(float(row.get("distance_meters") or 0) / 1000, 2)
+    return rows
+
+
+def _mode_analysis_rows(scope_sql: str = "1=1", scope_params: list[str] | None = None):
+    scope_params = scope_params or []
+    with connection.cursor() as cursor:
+        scope_where = f"WHERE {scope_sql}" if scope_sql != "1=1" else ""
+        cursor.execute(
+            """
+            SELECT rr.transport_mode, COUNT(*) AS route_count,
+                COALESCE(SUM(rr.distance_meters), 0) AS distance_meters,
+                COALESCE(ROUND(AVG(rr.duration_seconds)::numeric), 0) AS average_duration,
+                COALESCE(ROUND(AVG(rr.rating)::numeric, 2), 0) AS average_rating
+            FROM saferoute.recorded_routes rr
+            """ + scope_where + """
+            GROUP BY rr.transport_mode
+            ORDER BY route_count DESC, distance_meters DESC
+            """,
+            scope_params,
+        )
+        rows = _dictfetchall(cursor)
+
+    max_count = max([row["route_count"] for row in rows] or [1])
+    for row in rows:
+        row["width"] = int((row["route_count"] / max_count) * 100)
+        row["distance_km"] = round(float(row.get("distance_meters") or 0) / 1000, 2)
+    return rows
+
+
 def _safe_dashboard_rows(label: str, callback):
     try:
         return callback()
@@ -984,5 +1040,65 @@ def analytics(request: HttpRequest):
             "mode_rows": mode_rows,
             "daily_rows": daily_rows,
             "top_users": top_users,
+        },
+    )
+
+
+@_dashboard_auth(roles={"super_admin", "analyst"})
+def gis_policy_workspace(request: HttpRequest):
+    ensure_schema()
+    scope = _admin_scope_context(request)
+    route_map_data = _safe_dashboard_rows(
+        "gis route map",
+        lambda: _route_map_rows(limit=200, scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]),
+    )
+    complaint_map_data = _safe_dashboard_rows(
+        "gis complaint map",
+        lambda: _complaint_map_rows(limit=200, scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]),
+    )
+    density_rows = _safe_dashboard_rows(
+        "gis density",
+        lambda: _gis_density_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]),
+    )
+    mode_rows = _safe_dashboard_rows(
+        "gis mode analysis",
+        lambda: _mode_analysis_rows(scope["scope_sql"], scope["scope_params"]),
+    )
+    metrics = _metrics(scope["scope_sql"], scope["scope_params"])
+
+    top_hotspot = complaint_map_data[0] if complaint_map_data else None
+    top_density = density_rows[0] if density_rows else None
+    top_mode = mode_rows[0] if mode_rows else None
+    low_rating_modes = [
+        row for row in mode_rows
+        if float(row.get("average_rating") or 0) > 0 and float(row.get("average_rating") or 0) < 3
+    ][:3]
+
+    policy_context = {
+        "metrics": _json_ready(metrics),
+        "top_hotspot": _json_ready(top_hotspot or {}),
+        "top_density": _json_ready(top_density or {}),
+        "top_mode": _json_ready(top_mode or {}),
+        "low_rating_modes": _json_ready(low_rating_modes),
+        "scope": {
+            "role": scope["admin"].get("role") if isinstance(scope["admin"], dict) else None,
+            "area_level": scope["admin"].get("area_level") if isinstance(scope["admin"], dict) else None,
+            "area_name": scope["admin"].get("area_name") if isinstance(scope["admin"], dict) else None,
+        },
+    }
+
+    return render(
+        request,
+        "dashboard/gis_policy.html",
+        {
+            "active": "gis",
+            "metrics": metrics,
+            "mode_rows": mode_rows,
+            "density_rows": density_rows,
+            "route_map_data": route_map_data,
+            "complaint_map_data": complaint_map_data,
+            "policy_context": policy_context,
+            "top_hotspot": top_hotspot,
+            "top_density": top_density,
         },
     )
