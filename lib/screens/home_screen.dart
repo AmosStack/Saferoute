@@ -4,6 +4,7 @@ import '../auth/auth_models.dart';
 import '../l10n/app_strings.dart';
 import '../models/recorded_route.dart';
 import '../services/backend_service.dart';
+import '../services/local_route_store_service.dart';
 import 'map_picker_screen.dart';
 import 'profile_settings_screen.dart';
 import '../widgets/modern_surface.dart';
@@ -41,12 +42,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _routesFuture = _loadRoutes();
   }
 
-  Future<List<RecordedRoute>?> _loadRoutes() {
+  Future<List<RecordedRoute>?> _loadRoutes() async {
+    final localRoutes = await LocalRouteStoreService.loadRoutes();
     final userId = widget.user?.id;
     if (userId == null) {
-      return Future.value(const <RecordedRoute>[]);
+      return localRoutes;
     }
-    return BackendService.getUserRoutes(userId);
+    final backendRoutes = await BackendService.getUserRoutes(userId);
+    if (backendRoutes == null || backendRoutes.isEmpty) {
+      return localRoutes;
+    }
+
+    final merged = <RecordedRoute>[];
+    final seen = <String>{};
+    for (final route in [...localRoutes, ...backendRoutes]) {
+      final key = [
+        route.startTime.toIso8601String(),
+        route.endTime.toIso8601String(),
+        route.startPoint.latitude.toStringAsFixed(5),
+        route.startPoint.longitude.toStringAsFixed(5),
+        route.endPoint.latitude.toStringAsFixed(5),
+        route.endPoint.longitude.toStringAsFixed(5),
+      ].join('|');
+      if (seen.add(key)) {
+        merged.add(route);
+      }
+    }
+    return merged;
   }
 
   Future<void> _reloadRoutes() async {
@@ -56,8 +78,8 @@ class _HomeScreenState extends State<HomeScreen> {
     await _routesFuture;
   }
 
-  void _openRouteMap() {
-    Navigator.of(context).push(
+  Future<void> _openRouteMap() async {
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => MapPickerScreen(
           userId: widget.user?.id,
@@ -65,6 +87,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+    if (result == null || !mounted) return;
+
+    await _reloadRoutes();
+    if (!mounted) return;
+    setState(() {
+      _currentIndex = 1;
+    });
   }
 
   void _switchTab(int index) {
@@ -109,7 +138,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.appName, style: const TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(
+          strings.appName,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 250),
@@ -118,9 +150,15 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _switchTab,
-        backgroundColor: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.96) : Colors.white.withValues(alpha: 0.88),
-        indicatorColor: const Color(0xFF0E7C7B).withValues(alpha: isDark ? 0.26 : 0.16),
-        shadowColor: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.08),
+        backgroundColor: isDark
+            ? const Color(0xFF0F172A).withValues(alpha: 0.96)
+            : Colors.white.withValues(alpha: 0.88),
+        indicatorColor: const Color(
+          0xFF0E7C7B,
+        ).withValues(alpha: isDark ? 0.26 : 0.16),
+        shadowColor: isDark
+            ? Colors.black.withValues(alpha: 0.35)
+            : Colors.black.withValues(alpha: 0.08),
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.home_outlined),
@@ -158,9 +196,18 @@ class _HomeLandingPage extends StatelessWidget {
   final String? selectedTransportMode;
   final ValueChanged<String?> onTransportModeChanged;
 
-  static const List<_HomeTransportOption> _transportOptions = <_HomeTransportOption>[
-    _HomeTransportOption(label: 'Walking', mode: 'walking', icon: Icons.directions_walk),
-    _HomeTransportOption(label: 'Bicycle', mode: 'bicycle', icon: Icons.pedal_bike),
+  static const List<_HomeTransportOption>
+  _transportOptions = <_HomeTransportOption>[
+    _HomeTransportOption(
+      label: 'Walking',
+      mode: 'walking',
+      icon: Icons.directions_walk,
+    ),
+    _HomeTransportOption(
+      label: 'Bicycle',
+      mode: 'bicycle',
+      icon: Icons.pedal_bike,
+    ),
     _HomeTransportOption(label: 'Car', mode: 'car', icon: Icons.directions_car),
     _HomeTransportOption(label: 'Bus', mode: 'bus', icon: Icons.directions_bus),
   ];
@@ -183,7 +230,11 @@ class _HomeLandingPage extends StatelessWidget {
 }
 
 class _HomeTransportOption {
-  const _HomeTransportOption({required this.label, required this.mode, required this.icon});
+  const _HomeTransportOption({
+    required this.label,
+    required this.mode,
+    required this.icon,
+  });
 
   final String label;
   final String mode;
@@ -205,21 +256,39 @@ class _TransportPickerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.64);
+    final mutedTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.7)
+        : Colors.black.withValues(alpha: 0.64);
     final canStart = selectedTransportMode != null;
-    final surfaceColor = isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white.withValues(alpha: 0.96);
+    final surfaceColor = isDark
+        ? Theme.of(context).colorScheme.surfaceContainerHighest
+        : Colors.white.withValues(alpha: 0.96);
 
     return HoverSurface(
       padding: const EdgeInsets.all(16),
       borderRadius: 22,
-      backgroundColor: isDark ? Theme.of(context).colorScheme.surfaceContainerHighest : Colors.white,
-      borderColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+      backgroundColor: isDark
+          ? Theme.of(context).colorScheme.surfaceContainerHighest
+          : Colors.white,
+      borderColor: isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.05),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Transport mode', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: textColor)),
+          Text(
+            'Transport mode',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: textColor,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text('Pick one before opening the map.', style: TextStyle(color: mutedTextColor)),
+          Text(
+            'Pick one before opening the map.',
+            style: TextStyle(color: mutedTextColor),
+          ),
           const SizedBox(height: 12),
           GridView.count(
             crossAxisCount: 2,
@@ -232,26 +301,41 @@ class _TransportPickerCard extends StatelessWidget {
               for (final option in _HomeLandingPage._transportOptions)
                 InkWell(
                   onTap: () {
-                    onTransportModeChanged(selectedTransportMode == option.mode ? null : option.mode);
+                    onTransportModeChanged(
+                      selectedTransportMode == option.mode ? null : option.mode,
+                    );
                   },
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: selectedTransportMode == option.mode ? const Color(0xFF0E7C7B).withValues(alpha: 0.18) : surfaceColor,
+                      color: selectedTransportMode == option.mode
+                          ? const Color(0xFF0E7C7B).withValues(alpha: 0.18)
+                          : surfaceColor,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: selectedTransportMode == option.mode
                             ? const Color(0xFF0E7C7B)
-                            : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)),
+                            : (isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.06)),
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFF0E7C7B).withValues(alpha: 0.12),
-                          child: Icon(option.icon, size: 18, color: const Color(0xFF0E7C7B)),
+                          backgroundColor: const Color(
+                            0xFF0E7C7B,
+                          ).withValues(alpha: 0.12),
+                          child: Icon(
+                            option.icon,
+                            size: 18,
+                            color: const Color(0xFF0E7C7B),
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -259,7 +343,9 @@ class _TransportPickerCard extends StatelessWidget {
                             option.label,
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
-                              color: selectedTransportMode == option.mode ? const Color(0xFF0E7C7B) : textColor,
+                              color: selectedTransportMode == option.mode
+                                  ? const Color(0xFF0E7C7B)
+                                  : textColor,
                             ),
                           ),
                         ),
@@ -300,7 +386,9 @@ class _HeroCard extends StatelessWidget {
     final strings = AppStrings(localeCode);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
+    final mutedTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.72)
+        : Colors.black.withValues(alpha: 0.65);
     return HoverSurface(
       padding: const EdgeInsets.all(18),
       borderRadius: 26,
@@ -317,13 +405,14 @@ class _HeroCard extends StatelessWidget {
         children: [
           Text(
             user == null ? strings.planTrip : strings.welcomeUser(user!.name),
-            style: TextStyle(color: textColor, fontSize: 24, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: textColor,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 8),
-          Text(
-            strings.heroSubtitle,
-            style: TextStyle(color: mutedTextColor),
-          ),
+          Text(strings.heroSubtitle, style: TextStyle(color: mutedTextColor)),
           const SizedBox(height: 14),
           FilledButton(
             onPressed: onOpenMap,
@@ -389,7 +478,10 @@ class _RouteHistoryPage extends StatelessWidget {
                 ...routes.map(
                   (route) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _SavedRouteCard(localeCode: localeCode, route: route),
+                    child: _SavedRouteCard(
+                      localeCode: localeCode,
+                      route: route,
+                    ),
                   ),
                 ),
             ],
@@ -411,7 +503,9 @@ class _SavedRouteCard extends StatelessWidget {
     final strings = AppStrings(localeCode);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
+    final mutedTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.72)
+        : Colors.black.withValues(alpha: 0.65);
     return HoverSurface(
       padding: const EdgeInsets.all(14),
       borderRadius: 16,
@@ -424,7 +518,10 @@ class _SavedRouteCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '${route.startLocationName} → ${route.endLocationName}',
-                  style: TextStyle(fontWeight: FontWeight.w800, color: textColor),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
                 ),
               ),
               _StatusPill(label: route.transportMode),
@@ -438,19 +535,34 @@ class _SavedRouteCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '${strings.saved}: ${route.startTime.toLocal()} - ${route.endTime.toLocal()}',
-            style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.55), fontSize: 12),
+            style: TextStyle(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.55)
+                  : Colors.black.withValues(alpha: 0.55),
+              fontSize: 12,
+            ),
           ),
           if (route.notes != null && route.notes!.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(route.notes!, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: isDark ? Colors.white : null)),
+            Text(
+              route.notes!,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: isDark ? Colors.white : null),
+            ),
           ],
-          if (route.fareCost != null || route.waitingTimeMinutes != null || route.transferCount != null) ...[
+          if (route.fareCost != null ||
+              route.waitingTimeMinutes != null ||
+              route.transferCount != null) ...[
             const SizedBox(height: 8),
             Text(
               [
-                if (route.fareCost != null) 'Fare: TZS ${route.fareCost!.toStringAsFixed(0)}',
-                if (route.waitingTimeMinutes != null) 'Wait: ${route.waitingTimeMinutes} min',
-                if (route.transferCount != null) 'Transfers: ${route.transferCount}',
+                if (route.fareCost != null)
+                  'Fare: TZS ${route.fareCost!.toStringAsFixed(0)}',
+                if (route.waitingTimeMinutes != null)
+                  'Wait: ${route.waitingTimeMinutes} min',
+                if (route.transferCount != null)
+                  'Transfers: ${route.transferCount}',
               ].join(' • '),
               style: TextStyle(color: mutedTextColor, fontSize: 12),
             ),
@@ -460,7 +572,10 @@ class _SavedRouteCard extends StatelessWidget {
             children: [
               Icon(Icons.star, size: 16, color: Colors.amber.shade700),
               const SizedBox(width: 4),
-              Text(route.rating?.toString() ?? '-', style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                route.rating?.toString() ?? '-',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               const Spacer(),
               Text(strings.points(route.coordinates.length)),
             ],
@@ -472,7 +587,11 @@ class _SavedRouteCard extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.title, required this.subtitle, required this.icon});
+  const _EmptyState({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
 
   final String title;
   final String subtitle;
@@ -490,9 +609,18 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(icon, size: 34, color: const Color(0xFF274060)),
           const SizedBox(height: 10),
-          Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: textColor)),
+          Text(
+            title,
+            style: TextStyle(fontWeight: FontWeight.w800, color: textColor),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.72) : null)),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isDark ? Colors.white.withValues(alpha: 0.72) : null,
+            ),
+          ),
         ],
       ),
     );
@@ -510,10 +638,19 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0E7C7B).withValues(alpha: 0.22) : const Color(0xFF0E7C7B).withValues(alpha: 0.1),
+        color: isDark
+            ? const Color(0xFF0E7C7B).withValues(alpha: 0.22)
+            : const Color(0xFF0E7C7B).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 }
