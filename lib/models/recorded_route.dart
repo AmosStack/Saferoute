@@ -61,7 +61,9 @@ class RecordedRoute {
     'transportMode': transportMode,
     'startPoint': {'lat': startPoint.latitude, 'lng': startPoint.longitude},
     'endPoint': {'lat': endPoint.latitude, 'lng': endPoint.longitude},
-    'coordinates': coordinates.map((c) => {'lat': c.latitude, 'lng': c.longitude}).toList(),
+    'coordinates': coordinates
+        .map((c) => {'lat': c.latitude, 'lng': c.longitude})
+        .toList(),
     'startTime': startTime.toIso8601String(),
     'endTime': endTime.toIso8601String(),
     'distance': distance,
@@ -74,32 +76,72 @@ class RecordedRoute {
     'consentAccepted': consentAccepted,
   };
 
-  factory RecordedRoute.fromJson(Map<String, dynamic> json) => RecordedRoute(
-    id: json['id'] as String?,
-    startLocationName: json['startLocationName'] as String? ?? json['start_location_name'] as String? ?? '',
-    endLocationName: json['endLocationName'] as String? ?? json['end_location_name'] as String? ?? '',
-    transportMode: json['transportMode'] as String? ?? json['transport_mode'] as String? ?? 'walking',
-    startPoint: LatLng(
-      (json['startPoint'] as Map)['lat'] as double,
-      (json['startPoint'] as Map)['lng'] as double,
-    ),
-    endPoint: LatLng(
-      (json['endPoint'] as Map)['lat'] as double,
-      (json['endPoint'] as Map)['lng'] as double,
-    ),
-    coordinates: ((json['coordinates'] as List?)?.cast<Map>() ?? [])
-        .map((c) => LatLng(c['lat'] as double, c['lng'] as double))
-        .toList(),
-    startTime: DateTime.parse(json['startTime'] as String),
-    endTime: DateTime.parse(json['endTime'] as String),
-    distance: (json['distance'] as num).toDouble(),
-    rating: json['rating'] as int?,
-    notes: json['notes'] as String?,
-    fareCost: (json['fareCost'] as num?)?.toDouble(),
-    waitingTimeMinutes: json['waitingTimeMinutes'] as int?,
-    transferCount: json['transferCount'] as int?,
-    safetyAssessment: ((json['safetyAssessment'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{})
-        .map((key, value) => MapEntry(key, (value as num).toInt())),
-    consentAccepted: json['consentAccepted'] as bool? ?? false,
-  );
+  factory RecordedRoute.fromJson(Map<String, dynamic> json) {
+    final startPointJson = json['startPoint'] as Map?;
+    final endPointJson = json['endPoint'] as Map?;
+    final coordinatesJson =
+        ((json['coordinates'] as List?)?.cast<Map>() ?? const <Map>[]);
+    final startPoint = startPointJson == null
+        ? LatLng(
+            _numValue(json['startLatitude'] ?? json['start_latitude']),
+            _numValue(json['startLongitude'] ?? json['start_longitude']),
+          )
+        : LatLng(
+            _numValue(startPointJson['lat']),
+            _numValue(startPointJson['lng']),
+          );
+    final endPoint = endPointJson == null
+        ? LatLng(
+            _numValue(json['endLatitude'] ?? json['end_latitude']),
+            _numValue(json['endLongitude'] ?? json['end_longitude']),
+          )
+        : LatLng(
+            _numValue(endPointJson['lat']),
+            _numValue(endPointJson['lng']),
+          );
+    final coordinates = coordinatesJson
+        .map((c) => LatLng(_numValue(c['lat']), _numValue(c['lng'])))
+        .toList();
+
+    return RecordedRoute(
+      id: json['id']?.toString(),
+      startLocationName:
+          json['startLocationName'] as String? ??
+          json['start_location_name'] as String? ??
+          '',
+      endLocationName:
+          json['endLocationName'] as String? ??
+          json['end_location_name'] as String? ??
+          '',
+      transportMode:
+          json['transportMode'] as String? ??
+          json['transport_mode'] as String? ??
+          'walking',
+      startPoint: startPoint,
+      endPoint: endPoint,
+      coordinates: coordinates.isEmpty
+          ? <LatLng>[startPoint, endPoint]
+          : coordinates,
+      startTime: DateTime.parse(
+        (json['startTime'] ?? json['startedAt'] ?? json['started_at'])
+            as String,
+      ),
+      endTime: DateTime.parse(
+        (json['endTime'] ?? json['endedAt'] ?? json['ended_at']) as String,
+      ),
+      distance: _numValue(json['distance']),
+      rating: (json['rating'] as num?)?.toInt(),
+      notes: json['notes'] as String?,
+      fareCost: (json['fareCost'] as num?)?.toDouble(),
+      waitingTimeMinutes: (json['waitingTimeMinutes'] as num?)?.toInt(),
+      transferCount: (json['transferCount'] as num?)?.toInt(),
+      safetyAssessment:
+          ((json['safetyAssessment'] as Map?)?.cast<String, dynamic>() ??
+                  const <String, dynamic>{})
+              .map((key, value) => MapEntry(key, (value as num).toInt())),
+      consentAccepted: json['consentAccepted'] as bool? ?? false,
+    );
+  }
+
+  static double _numValue(Object? value) => (value as num?)?.toDouble() ?? 0;
 }
