@@ -8,9 +8,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/mock_data.dart';
 import '../services/backend_service.dart';
 import '../services/google_maps_api_service.dart';
+import '../services/local_route_store_service.dart';
 import '../services/route_recorder_service.dart';
 import '../services/user_settings_service.dart';
 import '../services/route_path_planner_service.dart';
+
+enum _CancelRouteAction { keepRecording, save, discard }
 
 class RouteRecorderScreen extends StatefulWidget {
   const RouteRecorderScreen({
@@ -58,8 +61,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _fareController = TextEditingController();
   final TextEditingController _waitingTimeController = TextEditingController();
-  final TextEditingController _transferCountController = TextEditingController();
-  final TextEditingController _incidentDescriptionController = TextEditingController();
+  final TextEditingController _transferCountController =
+      TextEditingController();
+  final TextEditingController _incidentDescriptionController =
+      TextEditingController();
+  final TextEditingController _cancelReasonController = TextEditingController();
   String _incidentType = 'Unsafe road condition';
   final Map<String, int> _safetyScores = <String, int>{};
 
@@ -67,6 +73,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   List<ll.LatLng> _activePlannedRoutePoints = <ll.LatLng>[];
   DateTime? _lastRerouteTime;
   static const double _offRouteThresholdMeters = 30.0;
+  static const double _arrivalThresholdMeters = 75.0;
   static final Duration _rerouteCooldown = const Duration(seconds: 8);
 
   static const String _sosIncidentType = 'SOS';
@@ -98,7 +105,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
             (contact) => _SosRecipient(
               name: contact.name,
               phone: contact.phone,
-              note: contact.relationship.isNotEmpty ? contact.relationship : 'Trusted contact',
+              note: contact.relationship.isNotEmpty
+                  ? contact.relationship
+                  : 'Trusted contact',
             ),
           )
           .toList(growable: false);
@@ -116,7 +125,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   }
 
   Future<void> _launchSms(_SosRecipient recipient, String message) async {
-    final uri = Uri.parse('sms:${recipient.phone}?body=${Uri.encodeComponent(message)}');
+    final uri = Uri.parse(
+      'sms:${recipient.phone}?body=${Uri.encodeComponent(message)}',
+    );
     if (!await canLaunchUrl(uri)) {
       throw Exception('No messaging app can handle this request.');
     }
@@ -125,7 +136,10 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
   Future<void> _sendSosToRecipient(_SosRecipient recipient) async {
     final currentPoint = _recorderService.currentLatLng ?? widget.startPoint;
-    final locationName = _currentLocationName ?? await _reverseGeocode(currentPoint) ?? 'Unknown location';
+    final locationName =
+        _currentLocationName ??
+        await _reverseGeocode(currentPoint) ??
+        'Unknown location';
     final message = [
       'SOS from SafeRoute.',
       'I need help and I am traveling now.',
@@ -137,7 +151,10 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
     if (widget.userId != null) {
       try {
-        final locationId = await _createLocationRecord(currentPoint, preferredName: locationName);
+        final locationId = await _createLocationRecord(
+          currentPoint,
+          preferredName: locationName,
+        );
         await BackendService.createIncident(
           incidentType: _sosIncidentType,
           description: 'SOS sent to ${recipient.name}. $message',
@@ -161,9 +178,13 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
         final isDark = theme.brightness == Brightness.dark;
-        final surfaceColor = isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white;
+        final surfaceColor = isDark
+            ? theme.colorScheme.surfaceContainerHighest
+            : Colors.white;
         final titleColor = isDark ? Colors.white : Colors.black;
-        final subtitleColor = isDark ? Colors.white.withValues(alpha: 0.78) : Colors.black.withValues(alpha: 0.7);
+        final subtitleColor = isDark
+            ? Colors.white.withValues(alpha: 0.78)
+            : Colors.black.withValues(alpha: 0.7);
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -171,7 +192,12 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Send SOS', style: theme.textTheme.titleLarge?.copyWith(color: titleColor)),
+                Text(
+                  'Send SOS',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: titleColor,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Choose a trusted person or emergency contact to receive your location message.',
@@ -183,12 +209,17 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
                       tileColor: surfaceColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                       leading: const CircleAvatar(
                         backgroundColor: Color(0xFF0E7C7B),
                         child: Icon(Icons.message, color: Colors.white),
                       ),
-                      title: Text(recipient.name, style: TextStyle(color: titleColor)),
+                      title: Text(
+                        recipient.name,
+                        style: TextStyle(color: titleColor),
+                      ),
                       subtitle: Text(
                         '${recipient.phone}\n${recipient.note}',
                         style: TextStyle(color: subtitleColor),
@@ -200,7 +231,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                           await _sendSosToRecipient(recipient);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('SOS prepared for ${recipient.name}')),
+                              SnackBar(
+                                content: Text(
+                                  'SOS prepared for ${recipient.name}',
+                                ),
+                              ),
                             );
                           }
                         } catch (e) {
@@ -233,7 +268,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     final lat2 = b.latitude * (math.pi / 180.0);
     final sinLat = math.sin(dLat / 2);
     final sinLon = math.sin(dLon / 2);
-    final h = sinLat * sinLat + (sinLon * sinLon) * (math.cos(lat1) * math.cos(lat2));
+    final h =
+        sinLat * sinLat + (sinLon * sinLon) * (math.cos(lat1) * math.cos(lat2));
     return 2 * earthRadius * math.asin(math.sqrt(h));
   }
 
@@ -243,10 +279,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
     await controller.animateCamera(
       gmaps.CameraUpdate.newCameraPosition(
-        gmaps.CameraPosition(
-          target: _toGoogleLatLng(target),
-          zoom: zoom,
-        ),
+        gmaps.CameraPosition(target: _toGoogleLatLng(target), zoom: zoom),
       ),
     );
   }
@@ -259,7 +292,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     ll.LatLng point, {
     String? preferredName,
   }) async {
-    final resolvedName = (preferredName ?? await _reverseGeocode(point) ?? 'Reported location').trim();
+    final resolvedName =
+        (preferredName ?? await _reverseGeocode(point) ?? 'Reported location')
+            .trim();
     try {
       return await BackendService.createLocation(
         name: resolvedName.isEmpty ? 'Reported location' : resolvedName,
@@ -347,13 +382,24 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
   Future<void> _autoReroute(ll.LatLng currentPoint) async {
     final now = DateTime.now();
-    if (_lastRerouteTime != null && now.difference(_lastRerouteTime!) < _rerouteCooldown) return;
+    if (_lastRerouteTime != null &&
+        now.difference(_lastRerouteTime!) < _rerouteCooldown) {
+      return;
+    }
     _lastRerouteTime = now;
 
     try {
-      final segments = await RoutePathPlannerService.calculatePath(currentPoint, widget.destination, widget.transportMode);
+      final segments = await RoutePathPlannerService.calculatePath(
+        currentPoint,
+        widget.destination,
+        widget.transportMode,
+      );
       if (segments == null || segments.isEmpty) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Re-route failed')));
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Re-route failed')));
+        }
         return;
       }
 
@@ -365,7 +411,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
             pts.add(p);
           } else {
             final last = pts.last;
-            if ((last.latitude - p.latitude).abs() > 0.000001 || (last.longitude - p.longitude).abs() > 0.000001) {
+            if ((last.latitude - p.latitude).abs() > 0.000001 ||
+                (last.longitude - p.longitude).abs() > 0.000001) {
               pts.add(p);
             }
           }
@@ -376,7 +423,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
         setState(() {
           _activePlannedRoutePoints = pts;
         });
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Re-routed for deviation')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Re-routed for deviation')),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Auto reroute error: $e');
@@ -384,48 +435,71 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   }
 
   Future<void> _cancelRoute() async {
-    final shouldDiscard = await showDialog<bool>(
+    final action = await showDialog<_CancelRouteAction>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Cancel route?'),
-          content: const Text('This will discard the current recording and return you to the previous screen.'),
+          content: const Text(
+            'Do you want to save the route traveled so far before cancelling?',
+          ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
+              onPressed: () => Navigator.of(
+                dialogContext,
+              ).pop(_CancelRouteAction.keepRecording),
               child: const Text('Keep recording'),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Discard'),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_CancelRouteAction.discard),
+              child: const Text('Don\'t save'),
+            ),
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_CancelRouteAction.save),
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Save route'),
             ),
           ],
         );
       },
     );
 
-    if (shouldDiscard != true) return;
+    if (action == null || action == _CancelRouteAction.keepRecording) return;
 
-    await _recorderService.cancelRecording();
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    await _showCancelReasonForm(saveRoute: action == _CancelRouteAction.save);
   }
 
-  Future<void> _saveRoute({ll.LatLng? locationPoint, String? locationName}) async {
+  Future<void> _saveRoute({
+    ll.LatLng? locationPoint,
+    String? locationName,
+    ll.LatLng? endPoint,
+    String? endLocationName,
+    String? extraNotes,
+  }) async {
+    final routeNotes = [
+      if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
+      if (extraNotes != null && extraNotes.trim().isNotEmpty) extraNotes.trim(),
+    ].join('\n\n');
+    final routeEndPoint = endPoint ?? widget.destination;
+    final routeEndLocationName = endLocationName ?? widget.endLocationName;
+
     final route = await _recorderService.stopRecording(
-      widget.destination,
+      routeEndPoint,
       startLocationName: widget.startLocationName,
-      endLocationName: widget.endLocationName,
+      endLocationName: routeEndLocationName,
       transportMode: widget.transportMode,
       rating: _selectedRating,
-      notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+      notes: routeNotes.isNotEmpty ? routeNotes : null,
       fareCost: _parseDoubleField(_fareController),
       waitingTimeMinutes: _parseIntField(_waitingTimeController),
       transferCount: _parseIntField(_transferCountController),
       safetyAssessment: _currentSafetyAssessment(),
       consentAccepted: _consentAccepted,
     );
+
+    await LocalRouteStoreService.saveRoute(route);
 
     if (widget.userId != null) {
       final saved = await BackendService.saveRoute(
@@ -435,10 +509,20 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
       if (saved) {
         try {
-          final transportModeId = await BackendService.createTransportMode(widget.transportMode);
+          final transportModeId = await BackendService.createTransportMode(
+            widget.transportMode,
+          );
           int? locationId;
-          final reportPoint = locationPoint ?? _currentReportedPoint ?? _recorderService.currentLatLng ?? widget.destination;
-          final reportName = locationName ?? _currentReportedLocationName ?? _currentLocationName ?? widget.endLocationName;
+          final reportPoint =
+              locationPoint ??
+              _currentReportedPoint ??
+              _recorderService.currentLatLng ??
+              widget.destination;
+          final reportName =
+              locationName ??
+              _currentReportedLocationName ??
+              _currentLocationName ??
+              widget.endLocationName;
           await BackendService.createTravelLog(
             userId: widget.userId!,
             recordedRouteId: route.id,
@@ -447,21 +531,24 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
             endedAt: route.endTime,
             distanceMeters: route.distance,
             durationSeconds: route.duration.inSeconds,
-            notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+            notes: routeNotes.isNotEmpty ? routeNotes : null,
           );
 
-          if (_notesController.text.isNotEmpty && _selectedRating != 0) {
-            final notes = _notesController.text.toLowerCase();
+          if (routeNotes.isNotEmpty && _selectedRating != 0) {
+            final notes = routeNotes.toLowerCase();
             if (notes.contains('unsafe') ||
                 notes.contains('danger') ||
                 notes.contains('problem') ||
                 _selectedRating <= 2) {
-              locationId ??= await _createLocationRecord(reportPoint, preferredName: reportName);
+              locationId ??= await _createLocationRecord(
+                reportPoint,
+                preferredName: reportName,
+              );
               await BackendService.createSafetyReport(
                 userId: widget.userId!,
                 routeId: route.id,
                 locationId: locationId,
-                description: _notesController.text,
+                description: routeNotes,
                 severity: 5 - _selectedRating,
               );
             }
@@ -479,6 +566,190 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     if (mounted) {
       Navigator.of(context).pop({'route': route});
     }
+  }
+
+  Future<void> _showCancelReasonForm({required bool saveRoute}) async {
+    if (!mounted) return;
+
+    final currentPoint =
+        _recorderService.currentLatLng ??
+        (_recorderService.coordinates.isNotEmpty
+            ? _recorderService.coordinates.last
+            : widget.startPoint);
+    final currentName = await _reverseGeocode(currentPoint);
+    if (!mounted) return;
+
+    _cancelReasonController.clear();
+    setState(() {
+      _currentLocationName = currentName;
+      _currentReportedPoint = currentPoint;
+      _currentReportedLocationName = currentName;
+    });
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, sheetSetState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 8,
+                    bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        saveRoute ? 'Save cancelled route' : 'Cancel route',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        currentName == null
+                            ? 'Stopped at: ${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'
+                            : 'Stopped at: $currentName',
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _cancelReasonController,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason for cancelling',
+                          hintText: 'Describe why you cancelled this route',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                      if (saveRoute) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _notesController,
+                          decoration: const InputDecoration(
+                            labelText: 'Route description',
+                            hintText:
+                                'Describe the route you passed, safety concerns, or observations',
+                            border: OutlineInputBorder(),
+                          ),
+                          maxLines: 4,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            5,
+                            (i) => IconButton(
+                              icon: Icon(
+                                Icons.star,
+                                color: i < _selectedRating
+                                    ? Colors.amber
+                                    : Colors.grey,
+                                size: 32,
+                              ),
+                              onPressed: () {
+                                sheetSetState(() {
+                                  _selectedRating = i + 1;
+                                });
+                                setState(() {
+                                  _selectedRating = i + 1;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _consentAccepted,
+                          onChanged: (value) {
+                            final accepted = value ?? false;
+                            sheetSetState(() {
+                              _consentAccepted = accepted;
+                            });
+                            setState(() {
+                              _consentAccepted = accepted;
+                            });
+                          },
+                          title: const Text(
+                            'I consent to share this cancelled route for safety analysis.',
+                          ),
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(sheetContext).pop(),
+                              child: const Text('Back'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () async {
+                                final reason = _cancelReasonController.text
+                                    .trim();
+                                if (reason.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please describe the cancellation reason',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                Navigator.of(sheetContext).pop();
+                                final cancelNote =
+                                    'Cancellation reason: $reason';
+                                if (saveRoute) {
+                                  await _saveRoute(
+                                    locationPoint: currentPoint,
+                                    locationName: currentName,
+                                    endPoint: currentPoint,
+                                    endLocationName:
+                                        currentName ??
+                                        'Cancelled route endpoint',
+                                    extraNotes: cancelNote,
+                                  );
+                                } else {
+                                  await _recorderService.cancelRecording();
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Route cancelled without saving',
+                                      ),
+                                    ),
+                                  );
+                                  Navigator.of(context).pop();
+                                }
+                              },
+                              child: Text(
+                                saveRoute ? 'Save and cancel' : 'Cancel route',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _showArrivalForm() async {
@@ -516,170 +787,178 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    Text(
-                      'Arrival detected',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${widget.endLocationName} reached',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      _currentLocationName == null
-                          ? 'Current location: ${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'
-                          : 'Current location: $_currentLocationName',
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Travel diary details',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _fareController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(
-                              labelText: 'Fare cost',
-                              prefixText: 'TZS ',
-                              border: OutlineInputBorder(),
+                      Text(
+                        'Arrival detected',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${widget.endLocationName} reached',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        _currentLocationName == null
+                            ? 'Current location: ${currentPoint.latitude.toStringAsFixed(5)}, ${currentPoint.longitude.toStringAsFixed(5)}'
+                            : 'Current location: $_currentLocationName',
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Travel diary details',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _fareController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Fare cost',
+                                prefixText: 'TZS ',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: _waitingTimeController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Waiting time',
+                                suffixText: 'min',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _transferCountController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Number of transfers',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Safety questionnaire',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._safetyQuestions.map(
+                        (question) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: DropdownButtonFormField<int>(
+                            initialValue: _safetyScores[question],
+                            items: List.generate(
+                              5,
+                              (index) => DropdownMenuItem<int>(
+                                value: index + 1,
+                                child: Text('${index + 1}'),
+                              ),
+                            ),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              dialogSetState(() {
+                                _safetyScores[question] = value;
+                              });
+                              setState(() {
+                                _safetyScores[question] = value;
+                              });
+                            },
+                            decoration: InputDecoration(
+                              labelText: question,
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _waitingTimeController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Waiting time',
-                              suffixText: 'min',
-                              border: OutlineInputBorder(),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          5,
+                          (i) => IconButton(
+                            icon: Icon(
+                              Icons.star,
+                              color: i < _selectedRating
+                                  ? Colors.amber
+                                  : Colors.grey,
+                              size: 32,
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _transferCountController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Number of transfers',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Safety questionnaire',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    ..._safetyQuestions.map(
-                      (question) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: DropdownButtonFormField<int>(
-                          initialValue: _safetyScores[question],
-                          items: List.generate(
-                            5,
-                            (index) => DropdownMenuItem<int>(
-                              value: index + 1,
-                              child: Text('${index + 1}'),
-                            ),
-                          ),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            dialogSetState(() {
-                              _safetyScores[question] = value;
-                            });
-                            setState(() {
-                              _safetyScores[question] = value;
-                            });
-                          },
-                          decoration: InputDecoration(
-                            labelText: question,
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        5,
-                        (i) => IconButton(
-                          icon: Icon(
-                            Icons.star,
-                            color: i < _selectedRating ? Colors.amber : Colors.grey,
-                            size: 32,
-                          ),
-                          onPressed: () {
-                            dialogSetState(() {
-                              _selectedRating = i + 1;
-                            });
-                            setState(() {
-                              _selectedRating = i + 1;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    TextField(
-                      controller: _notesController,
-                      decoration: const InputDecoration(
-                        hintText: 'Describe safety concerns, route quality, or observations',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 4,
-                    ),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _consentAccepted,
-                      onChanged: (value) {
-                        final accepted = value ?? false;
-                        dialogSetState(() {
-                          _consentAccepted = accepted;
-                        });
-                        setState(() {
-                          _consentAccepted = accepted;
-                        });
-                      },
-                      title: const Text('I consent to share this travel diary for safety analysis.'),
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
                             onPressed: () {
-                              Navigator.of(dialogContext).pop();
-                              _isArrivalDialogOpen = false;
-                              _arrivalHitCount = 0;
-                              _hasArrivedNotified = false;
+                              dialogSetState(() {
+                                _selectedRating = i + 1;
+                              });
+                              setState(() {
+                                _selectedRating = i + 1;
+                              });
                             },
-                            child: const Text('Continue tracking'),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () async {
-                              Navigator.of(dialogContext).pop();
-                              await _saveRoute(
-                                locationPoint: currentPoint,
-                                locationName: currentName,
-                              );
-                            },
-                            child: const Text('Save route'),
-                          ),
+                      ),
+                      TextField(
+                        controller: _notesController,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Describe safety concerns, route quality, or observations',
+                          border: OutlineInputBorder(),
                         ),
-                      ],
-                    ),
+                        maxLines: 4,
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _consentAccepted,
+                        onChanged: (value) {
+                          final accepted = value ?? false;
+                          dialogSetState(() {
+                            _consentAccepted = accepted;
+                          });
+                          setState(() {
+                            _consentAccepted = accepted;
+                          });
+                        },
+                        title: const Text(
+                          'I consent to share this travel diary for safety analysis.',
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop();
+                                _isArrivalDialogOpen = false;
+                                _arrivalHitCount = 0;
+                                _hasArrivedNotified = false;
+                              },
+                              child: const Text('Continue tracking'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () async {
+                                Navigator.of(dialogContext).pop();
+                                await _saveRoute(
+                                  locationPoint: currentPoint,
+                                  locationName: currentName,
+                                );
+                              },
+                              child: const Text('Save route'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -761,7 +1040,8 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                   TextField(
                     controller: descriptionController,
                     decoration: const InputDecoration(
-                      hintText: 'Describe what happened and why the location felt unsafe',
+                      hintText:
+                          'Describe what happened and why the location felt unsafe',
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 4,
@@ -779,10 +1059,14 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                       Expanded(
                         child: FilledButton(
                           onPressed: () async {
-                            final currentDescription = descriptionController.text.trim();
+                            final currentDescription = descriptionController
+                                .text
+                                .trim();
                             if (currentDescription.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please describe the incident')),
+                                const SnackBar(
+                                  content: Text('Please describe the incident'),
+                                ),
                               );
                               return;
                             }
@@ -804,13 +1088,19 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                               );
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Incident report sent')),
+                                  const SnackBar(
+                                    content: Text('Incident report sent'),
+                                  ),
                                 );
                               }
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to send incident report: $e')),
+                                  SnackBar(
+                                    content: Text(
+                                      'Failed to send incident report: $e',
+                                    ),
+                                  ),
                                 );
                               }
                             }
@@ -836,12 +1126,14 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
     final currentPoint = _recorderService.currentLatLng;
     if (currentPoint != null && !_hasArrivedNotified) {
-      if (_lastFollowedPoint == null || _distanceMeters(_lastFollowedPoint!, currentPoint) > 8) {
+      if (_lastFollowedPoint == null ||
+          _distanceMeters(_lastFollowedPoint!, currentPoint) > 8) {
         _lastFollowedPoint = currentPoint;
         _moveCamera(currentPoint, zoom: 17.0);
       }
 
-      if (_lastLocationNameLookupPoint == null || _distanceMeters(_lastLocationNameLookupPoint!, currentPoint) > 60) {
+      if (_lastLocationNameLookupPoint == null ||
+          _distanceMeters(_lastLocationNameLookupPoint!, currentPoint) > 60) {
         _lastLocationNameLookupPoint = currentPoint;
         _reverseGeocode(currentPoint).then((name) {
           if (!mounted || name == null || name.isEmpty) return;
@@ -853,7 +1145,16 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     }
 
     if (currentPoint != null) {
-      final nearDestination = _recorderService.isNearDestination(widget.destination, thresholdMeters: 5);
+      final destinationDistance = _distanceMeters(
+        currentPoint,
+        widget.destination,
+      );
+      final nearDestination =
+          destinationDistance <= _arrivalThresholdMeters ||
+          _recorderService.isNearDestination(
+            widget.destination,
+            thresholdMeters: _arrivalThresholdMeters,
+          );
       if (nearDestination) {
         _arrivalHitCount += 1;
       } else {
@@ -862,11 +1163,16 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 
       if (!_hasArrivedNotified && _arrivalHitCount >= 2) {
         _hasArrivedNotified = true;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Destination reached')));
         _showArrivalForm();
       }
 
       // Off-route detection and auto re-route
-      final activePlanned = _activePlannedRoutePoints.isNotEmpty ? _activePlannedRoutePoints : widget.plannedRoutePoints;
+      final activePlanned = _activePlannedRoutePoints.isNotEmpty
+          ? _activePlannedRoutePoints
+          : widget.plannedRoutePoints;
       if (activePlanned.isNotEmpty) {
         final minDist = _minDistanceToPlanned(currentPoint, activePlanned);
         if (minDist > _offRouteThresholdMeters) {
@@ -895,6 +1201,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     _waitingTimeController.dispose();
     _transferCountController.dispose();
     _incidentDescriptionController.dispose();
+    _cancelReasonController.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -903,14 +1210,24 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final mutedTextColor = isDark ? Colors.white.withValues(alpha: 0.72) : Colors.black.withValues(alpha: 0.65);
+    final mutedTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.72)
+        : Colors.black.withValues(alpha: 0.65);
     final coords = _recorderService.coordinates;
     final currentPoint = _recorderService.currentLatLng;
+    final routePolylinePoints = <ll.LatLng>[...coords];
+    if (currentPoint != null &&
+        (routePolylinePoints.isEmpty ||
+            _distanceMeters(routePolylinePoints.last, currentPoint) > 0.5)) {
+      routePolylinePoints.add(currentPoint);
+    }
     final isRecording = _recorderService.isRecording;
     // Split planned route into already-traveled and remaining segments
     final List<gmaps.LatLng> plannedTraveled = <gmaps.LatLng>[];
     final List<gmaps.LatLng> plannedRemaining = <gmaps.LatLng>[];
-    final planned = _activePlannedRoutePoints.isNotEmpty ? _activePlannedRoutePoints : widget.plannedRoutePoints;
+    final planned = _activePlannedRoutePoints.isNotEmpty
+        ? _activePlannedRoutePoints
+        : widget.plannedRoutePoints;
     if (planned.length > 1) {
       if (currentPoint != null) {
         var minIdx = 0;
@@ -923,7 +1240,9 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
           }
         }
         if (minIdx > 0) {
-          plannedTraveled.addAll(planned.sublist(0, minIdx + 1).map(_toGoogleLatLng));
+          plannedTraveled.addAll(
+            planned.sublist(0, minIdx + 1).map(_toGoogleLatLng),
+          );
         }
         plannedRemaining.addAll(planned.sublist(minIdx).map(_toGoogleLatLng));
       } else {
@@ -961,18 +1280,24 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               gmaps.Marker(
                 markerId: const gmaps.MarkerId('start'),
                 position: _toGoogleLatLng(widget.startPoint),
-                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueGreen),
+                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                  gmaps.BitmapDescriptor.hueGreen,
+                ),
               ),
               gmaps.Marker(
                 markerId: const gmaps.MarkerId('destination'),
                 position: _toGoogleLatLng(widget.destination),
-                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueRed),
+                icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                  gmaps.BitmapDescriptor.hueRed,
+                ),
               ),
               if (currentPoint != null)
                 gmaps.Marker(
                   markerId: const gmaps.MarkerId('live_location'),
                   position: _toGoogleLatLng(currentPoint),
-                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(gmaps.BitmapDescriptor.hueAzure),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                    gmaps.BitmapDescriptor.hueAzure,
+                  ),
                 ),
             },
             polylines: {
@@ -993,10 +1318,10 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                   color: const Color(0xFF0E7C7B),
                 ),
               // actual recorded route (what the user has traveled)
-              if (coords.length > 1)
+              if (routePolylinePoints.length > 1)
                 gmaps.Polyline(
                   polylineId: const gmaps.PolylineId('recorded_route'),
-                  points: coords.map(_toGoogleLatLng).toList(),
+                  points: routePolylinePoints.map(_toGoogleLatLng).toList(),
                   width: 5,
                   color: Colors.blueAccent,
                 ),
@@ -1018,7 +1343,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                   children: [
                     Text(
                       '${widget.startLocationName} → ${widget.endLocationName}',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textColor),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1044,22 +1373,42 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Distance', style: TextStyle(fontSize: 12, color: mutedTextColor)),
+                            Text(
+                              'Distance',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: mutedTextColor,
+                              ),
+                            ),
                             Text(
                               _recorderService.totalDistance < 1000
                                   ? '${_recorderService.totalDistance.toStringAsFixed(0)} m'
                                   : '${(_recorderService.totalDistance / 1000).toStringAsFixed(2)} km',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
                             ),
                           ],
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('Points Recorded', style: TextStyle(fontSize: 12, color: mutedTextColor)),
+                            Text(
+                              'Points Recorded',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: mutedTextColor,
+                              ),
+                            ),
                             Text(
                               '${coords.length}',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
                             ),
                           ],
                         ),
@@ -1100,7 +1449,11 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
 }
 
 class _SosRecipient {
-  const _SosRecipient({required this.name, required this.phone, required this.note});
+  const _SosRecipient({
+    required this.name,
+    required this.phone,
+    required this.note,
+  });
 
   final String name;
   final String phone;
