@@ -215,6 +215,8 @@
     const topHotspot = policy.top_hotspot || {};
     const topDensity = policy.top_density || {};
     const weakModes = policy.low_rating_modes || [];
+    // Ensure all handlers still work even when clipboard is blocked.
+    // (Some browsers require HTTPS + user gesture.)
     return [
       'GIS DATA ANALYSIS',
       '',
