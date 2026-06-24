@@ -16,7 +16,7 @@
     <h2>Create admin</h2>
     <span class="subtle">Super admins only</span>
   </div>
-  <form class="form-grid" method="post" action="/dashboard/admins/new">
+  <form class="form-grid admin-scope-form" method="post" action="{% url 'admin_create' %}">
     <label>Username
       <input name="username" autocomplete="username" required>
     </label>
@@ -24,34 +24,27 @@
       <input name="password" type="password" autocomplete="new-password" required placeholder="Minimum 8 characters">
     </label>
     <label>Role
-      <select name="role" required>
+      <select name="role" class="admin-role" required>
         {% for value, label in roles %}
         <option value="{{ value }}">{{ label }}</option>
         {% endfor %}
       </select>
     </label>
-    <label>Area level
-      <select name="area_level">
-        <option value="">Not scoped</option>
-        {% for value, label in area_levels %}
-        <option value="{{ value }}">{{ label }}</option>
+    <label class="district-field">District
+      <select name="district_id" class="district-select">
+        <option value="">Choose district</option>
+        {% for district in districts %}
+        <option value="{{ district.key }}">{{ district.name }}</option>
         {% endfor %}
       </select>
     </label>
-    <label>Area name
-      <input name="area_name" placeholder="District or ward name">
-    </label>
-    <label>Boundary min latitude
-      <input name="boundary_min_lat" type="number" step="0.00000001" placeholder="e.g. -1.29210">
-    </label>
-    <label>Boundary max latitude
-      <input name="boundary_max_lat" type="number" step="0.00000001" placeholder="e.g. -1.25000">
-    </label>
-    <label>Boundary min longitude
-      <input name="boundary_min_lng" type="number" step="0.00000001" placeholder="e.g. 36.70000">
-    </label>
-    <label>Boundary max longitude
-      <input name="boundary_max_lng" type="number" step="0.00000001" placeholder="e.g. 36.90000">
+    <label class="ward-field">Ward
+      <select name="ward_id" class="ward-select">
+        <option value="">Choose ward</option>
+        {% for ward in wards %}
+        <option value="{{ ward.id }}" data-district-id="{{ ward.district_key }}">{{ ward.name }}</option>
+        {% endfor %}
+      </select>
     </label>
     <button class="primary" type="submit">Create admin</button>
   </form>
@@ -65,11 +58,11 @@
         <input name="q" value="{{ query }}" placeholder="Username or role">
       </label>
       <button class="primary" type="submit">Filter</button>
-      <a class="button" href="/dashboard/admins">Reset</a>
+      <a class="button" href="{% url 'admins_list' %}">Reset</a>
     </form>
   </div>
   <table>
-    <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Area</th><th>Boundary</th><th>Created</th><th>Update role</th></tr></thead>
+    <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Area</th><th>Created</th><th>Update access</th></tr></thead>
     <tbody>
       {% for admin in admins %}
       <tr>
@@ -83,41 +76,77 @@
             <span class="subtle">All areas</span>
           {% endif %}
         </td>
-        <td>
-          {% if admin.boundary_min_lat is not None and admin.boundary_max_lat is not None and admin.boundary_min_lng is not None and admin.boundary_max_lng is not None %}
-            <span class="pill">Lat {{ admin.boundary_min_lat }} to {{ admin.boundary_max_lat }}</span>
-            <span class="pill">Lng {{ admin.boundary_min_lng }} to {{ admin.boundary_max_lng }}</span>
-          {% else %}
-            <span class="subtle">Not set</span>
-          {% endif %}
-        </td>
         <td>{{ admin.created_at }}</td>
         <td>
-          <form method="post" action="/dashboard/admins/{{ admin.id }}/update" class="filters">
-            <select name="role">
+          <form method="post" action="{% url 'admin_update' admin.id %}" class="filters admin-scope-form">
+            <select name="role" class="admin-role">
               {% for value, label in roles %}
               <option value="{{ value }}" {% if admin.role == value %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
-            <select name="area_level">
-              <option value="">Not scoped</option>
-              {% for value, label in area_levels %}
-              <option value="{{ value }}" {% if admin.area_level == value %}selected{% endif %}>{{ label }}</option>
+            <select name="district_id" class="district-select district-field">
+              <option value="">Choose district</option>
+              {% for district in districts %}
+              <option value="{{ district.key }}" {% if admin.district_key == district.key %}selected{% endif %}>{{ district.name }}</option>
               {% endfor %}
             </select>
-            <input name="area_name" value="{{ admin.area_name }}" placeholder="District or ward name">
-            <input name="boundary_min_lat" value="{{ admin.boundary_min_lat }}" type="number" step="0.00000001" placeholder="Min lat">
-            <input name="boundary_max_lat" value="{{ admin.boundary_max_lat }}" type="number" step="0.00000001" placeholder="Max lat">
-            <input name="boundary_min_lng" value="{{ admin.boundary_min_lng }}" type="number" step="0.00000001" placeholder="Min lng">
-            <input name="boundary_max_lng" value="{{ admin.boundary_max_lng }}" type="number" step="0.00000001" placeholder="Max lng">
+            <select name="ward_id" class="ward-select ward-field">
+              <option value="">Choose ward</option>
+              {% for ward in wards %}
+              <option value="{{ ward.id }}" data-district-id="{{ ward.district_key }}" {% if admin.ward_id == ward.id %}selected{% endif %}>{{ ward.name }}</option>
+              {% endfor %}
+            </select>
             <button class="primary" type="submit">Save</button>
           </form>
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="7">No admin accounts found.</td></tr>
+      <tr><td colspan="6">No admin accounts found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  function updateForm(form) {
+    const role = form.querySelector('.admin-role')?.value || '';
+    const districtField = form.querySelector('.district-field');
+    const wardField = form.querySelector('.ward-field');
+    const districtSelect = form.querySelector('.district-select');
+    const wardSelect = form.querySelector('.ward-select');
+    const needsDistrict = role === 'district_security_officer' || role === 'ward_security_officer';
+    const needsWard = role === 'ward_security_officer';
+
+    if (districtField) districtField.style.display = needsDistrict ? '' : 'none';
+    if (wardField) wardField.style.display = needsWard ? '' : 'none';
+    if (districtSelect) districtSelect.required = needsDistrict;
+    if (wardSelect) wardSelect.required = needsWard;
+
+    if (!needsDistrict && districtSelect) districtSelect.value = '';
+    if (!needsWard && wardSelect) wardSelect.value = '';
+
+    if (wardSelect && districtSelect) {
+      const districtId = districtSelect.value;
+      Array.from(wardSelect.options).forEach((option) => {
+        if (!option.value) {
+          option.hidden = false;
+          return;
+        }
+        option.hidden = Boolean(districtId) && option.dataset.districtId !== districtId;
+      });
+      const selected = wardSelect.selectedOptions[0];
+      if (selected && selected.hidden) wardSelect.value = '';
+    }
+  }
+
+  document.querySelectorAll('.admin-scope-form').forEach((form) => {
+    form.querySelector('.admin-role')?.addEventListener('change', () => updateForm(form));
+    form.querySelector('.district-select')?.addEventListener('change', () => updateForm(form));
+    updateForm(form);
+  });
+})();
+</script>
 {% endblock %}
