@@ -225,12 +225,40 @@ CREATE TABLE IF NOT EXISTS saferoute.admins (
     role VARCHAR(32) NOT NULL DEFAULT 'super_admin',
     area_level VARCHAR(32),
     area_name VARCHAR(120),
+    district_id INT,
+    ward_id INT,
     boundary_min_lat DECIMAL(10,8),
     boundary_max_lat DECIMAL(10,8),
     boundary_min_lng DECIMAL(11,8),
     boundary_max_lng DECIMAL(11,8),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS saferoute.districts (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(120) NOT NULL UNIQUE,
+    boundary_min_lat DECIMAL(10,8) NOT NULL,
+    boundary_max_lat DECIMAL(10,8) NOT NULL,
+    boundary_min_lng DECIMAL(11,8) NOT NULL,
+    boundary_max_lng DECIMAL(11,8) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS saferoute.wards (
+    id SERIAL PRIMARY KEY,
+    district_id INT REFERENCES saferoute.districts(id) ON DELETE CASCADE,
+    district_name VARCHAR(120),
+    name VARCHAR(120) NOT NULL,
+    boundary_min_lat DECIMAL(10,8) NOT NULL,
+    boundary_max_lat DECIMAL(10,8) NOT NULL,
+    boundary_min_lng DECIMAL(11,8) NOT NULL,
+    boundary_max_lng DECIMAL(11,8) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (district_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wards_district_id
+ON saferoute.wards(district_id);
 
 INSERT INTO saferoute.admins (username, password_hash, role)
 VALUES ('admin', 'pbkdf2_sha256$870000$saferoute-admin$YGM/Ri/+IeI1dZFTWtfFrYOIOSV/3THvCtuxis0ClVk=', 'super_admin')
