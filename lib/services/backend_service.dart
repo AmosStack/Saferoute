@@ -204,8 +204,8 @@ class BackendService {
   // ROUTES
   // ============================================================================
 
-  /// Save a recorded route to the backend
-  static Future<bool> saveRoute({
+  /// Save a recorded route to the backend and return its backend id.
+  static Future<String?> saveRoute({
     required int userId,
     required RecordedRoute route,
   }) async {
@@ -236,14 +236,15 @@ class BackendService {
       });
 
       if (response.statusCode == 200) {
-        return true;
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data['id']?.toString();
       } else {
         debugPrint('Failed to save route: ${response.body}');
-        return false;
+        return null;
       }
     } catch (e) {
       debugPrint('Error saving route: $e');
-      return false;
+      return null;
     }
   }
 
