@@ -22,6 +22,8 @@ def ensure_schema() -> None:
           role VARCHAR(32) NOT NULL DEFAULT 'super_admin',
           area_level VARCHAR(32),
           area_name VARCHAR(120),
+          district_id INT,
+          ward_id INT,
           boundary_min_lat DECIMAL(10, 8),
           boundary_max_lat DECIMAL(10, 8),
           boundary_min_lng DECIMAL(11, 8),
@@ -32,10 +34,45 @@ def ensure_schema() -> None:
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS role VARCHAR(32) NOT NULL DEFAULT 'super_admin'",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS area_level VARCHAR(32)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS area_name VARCHAR(120)",
+        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS district_id INT",
+        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS ward_id INT",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_min_lat DECIMAL(10, 8)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_max_lat DECIMAL(10, 8)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_min_lng DECIMAL(11, 8)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_max_lng DECIMAL(11, 8)",
+        """
+        CREATE TABLE IF NOT EXISTS saferoute.districts (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(120) NOT NULL UNIQUE,
+          boundary_min_lat DECIMAL(10, 8) NOT NULL,
+          boundary_max_lat DECIMAL(10, 8) NOT NULL,
+          boundary_min_lng DECIMAL(11, 8) NOT NULL,
+          boundary_max_lng DECIMAL(11, 8) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS saferoute.wards (
+          id SERIAL PRIMARY KEY,
+          district_id INT REFERENCES saferoute.districts(id) ON DELETE CASCADE,
+          district_name VARCHAR(120),
+          name VARCHAR(120) NOT NULL,
+          boundary_min_lat DECIMAL(10, 8) NOT NULL,
+          boundary_max_lat DECIMAL(10, 8) NOT NULL,
+          boundary_min_lng DECIMAL(11, 8) NOT NULL,
+          boundary_max_lng DECIMAL(11, 8) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (district_id, name)
+        )
+        """,
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS district_id INT",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS district_name VARCHAR(120)",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS name VARCHAR(120)",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS boundary_min_lat DECIMAL(10, 8)",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS boundary_max_lat DECIMAL(10, 8)",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS boundary_min_lng DECIMAL(11, 8)",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS boundary_max_lng DECIMAL(11, 8)",
+        "CREATE INDEX IF NOT EXISTS idx_wards_district_id ON saferoute.wards(district_id)",
         """
         CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
