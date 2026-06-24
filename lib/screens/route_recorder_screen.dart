@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -68,6 +69,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
   final TextEditingController _cancelReasonController = TextEditingController();
   String _incidentType = 'Unsafe road condition';
   final Map<String, int> _safetyScores = <String, int>{};
+  Timer? _arrivalCheckTimer;
 
   // Auto re-route state
   List<ll.LatLng> _activePlannedRoutePoints = <ll.LatLng>[];
@@ -339,6 +341,16 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     await _moveCamera(widget.startPoint, zoom: 16.0);
   }
 
+  void _startArrivalChecks() {
+    _arrivalCheckTimer?.cancel();
+    _arrivalCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      final currentPoint = _recorderService.currentLatLng;
+      if (currentPoint != null) {
+        _checkArrival(currentPoint);
+      }
+    });
+  }
+
   double _distancePointToSegmentMeters(ll.LatLng p, ll.LatLng a, ll.LatLng b) {
     // Equirectangular approximation in meters for small distances
     const R = 6371000.0;
@@ -502,12 +514,12 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     await LocalRouteStoreService.saveRoute(route);
 
     if (widget.userId != null) {
-      final saved = await BackendService.saveRoute(
+      final savedRouteId = await BackendService.saveRoute(
         userId: widget.userId!,
         route: route,
       );
 
-      if (saved) {
+      if (savedRouteId != null) {
         try {
           final transportModeId = await BackendService.createTransportMode(
             widget.transportMode,
@@ -525,7 +537,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               widget.endLocationName;
           await BackendService.createTravelLog(
             userId: widget.userId!,
-            recordedRouteId: route.id,
+            recordedRouteId: savedRouteId,
             transportModeId: transportModeId,
             startedAt: route.startTime,
             endedAt: route.endTime,
@@ -546,7 +558,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
               );
               await BackendService.createSafetyReport(
                 userId: widget.userId!,
-                routeId: route.id,
+                routeId: savedRouteId,
                 locationId: locationId,
                 description: routeNotes,
                 severity: 5 - _selectedRating,
@@ -940,6 +952,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                                 _isArrivalDialogOpen = false;
                                 _arrivalHitCount = 0;
                                 _hasArrivedNotified = false;
+                                _startArrivalChecks();
                               },
                               child: const Text('Continue tracking'),
                             ),
@@ -1121,6 +1134,36 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     _isIncidentDialogOpen = false;
   }
 
+  void _checkArrival(ll.LatLng currentPoint) {
+    if (!mounted) return;
+    if (_hasArrivedNotified || _isArrivalDialogOpen) return;
+
+    final destinationDistance = _distanceMeters(currentPoint, widget.destination);
+    final nearDestination =
+        destinationDistance <= _arrivalThresholdMeters ||
+        _recorderService.isNearDestination(
+          widget.destination,
+          thresholdMeters: _arrivalThresholdMeters,
+        );
+    if (nearDestination) {
+      _arrivalHitCount += 1;
+    } else {
+      _arrivalHitCount = 0;
+    }
+
+    if (_arrivalHitCount < 2) return;
+
+    _hasArrivedNotified = true;
+    _arrivalCheckTimer?.cancel();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Destination reached')));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_showArrivalForm());
+    });
+  }
+
   void _onLocationUpdate() {
     if (!mounted) return;
 
@@ -1145,29 +1188,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     }
 
     if (currentPoint != null) {
-      final destinationDistance = _distanceMeters(
-        currentPoint,
-        widget.destination,
-      );
-      final nearDestination =
-          destinationDistance <= _arrivalThresholdMeters ||
-          _recorderService.isNearDestination(
-            widget.destination,
-            thresholdMeters: _arrivalThresholdMeters,
-          );
-      if (nearDestination) {
-        _arrivalHitCount += 1;
-      } else {
-        _arrivalHitCount = 0;
-      }
-
-      if (!_hasArrivedNotified && _arrivalHitCount >= 2) {
-        _hasArrivedNotified = true;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Destination reached')));
-        _showArrivalForm();
-      }
+      _checkArrival(currentPoint);
 
       // Off-route detection and auto re-route
       final activePlanned = _activePlannedRoutePoints.isNotEmpty
@@ -1190,11 +1211,13 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     _recorderService = RouteRecorderService();
     _recorderService.addListener(_onLocationUpdate);
     _startRecording();
+    _startArrivalChecks();
   }
 
   @override
   void dispose() {
     _recorderService.removeListener(_onLocationUpdate);
+    _arrivalCheckTimer?.cancel();
     _recorderService.dispose();
     _notesController.dispose();
     _fareController.dispose();
