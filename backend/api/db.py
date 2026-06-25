@@ -53,7 +53,9 @@ def ensure_schema() -> None:
         """,
         """
         CREATE TABLE IF NOT EXISTS saferoute.wards (
-          id SERIAL PRIMARY KEY,
+          fid SERIAL PRIMARY KEY,
+          ward_name VARCHAR(50),
+          dist_name VARCHAR(50),
           district_id INT REFERENCES saferoute.districts(id) ON DELETE CASCADE,
           district_name VARCHAR(120),
           name VARCHAR(120) NOT NULL,
@@ -65,6 +67,9 @@ def ensure_schema() -> None:
           UNIQUE (district_id, name)
         )
         """,
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS fid SERIAL",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS ward_name VARCHAR(50)",
+        "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS dist_name VARCHAR(50)",
         "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS district_id INT",
         "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS district_name VARCHAR(120)",
         "ALTER TABLE saferoute.wards ADD COLUMN IF NOT EXISTS name VARCHAR(120)",
