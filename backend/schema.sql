@@ -245,7 +245,9 @@ CREATE TABLE IF NOT EXISTS saferoute.districts (
 );
 
 CREATE TABLE IF NOT EXISTS saferoute.wards (
-    id SERIAL PRIMARY KEY,
+    fid SERIAL PRIMARY KEY,
+    ward_name VARCHAR(50),
+    dist_name VARCHAR(50),
     district_id INT REFERENCES saferoute.districts(id) ON DELETE CASCADE,
     district_name VARCHAR(120),
     name VARCHAR(120) NOT NULL,
