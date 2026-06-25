@@ -227,10 +227,6 @@ CREATE TABLE IF NOT EXISTS saferoute.admins (
     area_name VARCHAR(120),
     district_id INT,
     ward_id INT,
-    boundary_min_lat DECIMAL(10,8),
-    boundary_max_lat DECIMAL(10,8),
-    boundary_min_lng DECIMAL(11,8),
-    boundary_max_lng DECIMAL(11,8),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
