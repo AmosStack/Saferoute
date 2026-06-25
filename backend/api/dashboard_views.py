@@ -200,18 +200,21 @@ def _district_rows() -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT 'district:' || id::text AS key, id, name,
-                   boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
-            FROM saferoute.districts
-            UNION
-            SELECT 'ward-district:' || district_name AS key, NULL AS id, district_name AS name,
+            SELECT
+                   CASE
+                     WHEN district_id IS NOT NULL THEN 'district:' || district_id::text
+                     ELSE 'ward-district:' || COALESCE(district_name, dist_name)
+                   END AS key,
+                   district_id AS id,
+                   COALESCE(district_name, dist_name) AS name,
                    MIN(boundary_min_lat) AS boundary_min_lat,
                    MAX(boundary_max_lat) AS boundary_max_lat,
                    MIN(boundary_min_lng) AS boundary_min_lng,
                    MAX(boundary_max_lng) AS boundary_max_lng
             FROM saferoute.wards
-            WHERE district_name IS NOT NULL AND district_name <> ''
-            GROUP BY district_name
+            WHERE COALESCE(district_name, dist_name) IS NOT NULL
+              AND COALESCE(district_name, dist_name) <> ''
+            GROUP BY district_id, COALESCE(district_name, dist_name)
             ORDER BY name
             """
         )
@@ -222,16 +225,16 @@ def _ward_rows() -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT w.id, w.name, w.district_id,
-                   COALESCE(d.name, w.district_name) AS district_name,
+            SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name, w.district_id,
+                   COALESCE(w.district_name, w.dist_name) AS district_name,
                    CASE
                      WHEN w.district_id IS NOT NULL THEN 'district:' || w.district_id::text
-                     ELSE 'ward-district:' || w.district_name
+                     ELSE 'ward-district:' || COALESCE(w.district_name, w.dist_name)
                    END AS district_key,
                    w.boundary_min_lat, w.boundary_max_lat, w.boundary_min_lng, w.boundary_max_lng
             FROM saferoute.wards w
-            LEFT JOIN saferoute.districts d ON d.id = w.district_id
-            ORDER BY COALESCE(d.name, w.district_name), w.name
+            WHERE COALESCE(w.name, w.ward_name) IS NOT NULL
+            ORDER BY COALESCE(w.district_name, w.dist_name), COALESCE(w.name, w.ward_name)
             """
         )
         return _dictfetchall(cursor)
@@ -243,9 +246,14 @@ def _resolve_district_scope(district_key: str) -> dict | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, name, boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
-                FROM saferoute.districts
-                WHERE id = %s
+                SELECT district_id AS id, COALESCE(district_name, dist_name) AS name,
+                       MIN(boundary_min_lat) AS boundary_min_lat,
+                       MAX(boundary_max_lat) AS boundary_max_lat,
+                       MIN(boundary_min_lng) AS boundary_min_lng,
+                       MAX(boundary_max_lng) AS boundary_max_lng
+                FROM saferoute.wards
+                WHERE district_id = %s
+                GROUP BY district_id, COALESCE(district_name, dist_name)
                 """,
                 [district_id],
             )
@@ -256,14 +264,14 @@ def _resolve_district_scope(district_key: str) -> dict | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT NULL AS id, district_name AS name,
+                SELECT NULL AS id, COALESCE(district_name, dist_name) AS name,
                        MIN(boundary_min_lat) AS boundary_min_lat,
                        MAX(boundary_max_lat) AS boundary_max_lat,
                        MIN(boundary_min_lng) AS boundary_min_lng,
                        MAX(boundary_max_lng) AS boundary_max_lng
                 FROM saferoute.wards
-                WHERE district_name = %s
-                GROUP BY district_name
+                WHERE COALESCE(district_name, dist_name) = %s
+                GROUP BY COALESCE(district_name, dist_name), district_name
                 """,
                 [district_name],
             )
@@ -312,15 +320,15 @@ def _admin_scope_params(
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT w.id, w.name, w.district_id, COALESCE(d.name, w.district_name) AS district_name,
+                SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name,
+                       w.district_id, COALESCE(w.district_name, w.dist_name) AS district_name,
                        CASE
                          WHEN w.district_id IS NOT NULL THEN 'district:' || w.district_id::text
-                         ELSE 'ward-district:' || w.district_name
+                         ELSE 'ward-district:' || COALESCE(w.district_name, w.dist_name)
                        END AS district_key,
                        w.boundary_min_lat, w.boundary_max_lat, w.boundary_min_lng, w.boundary_max_lng
                 FROM saferoute.wards w
-                LEFT JOIN saferoute.districts d ON d.id = w.district_id
-                WHERE w.id = %s
+                WHERE w.fid = %s
                 """,
                 [selected_ward_id],
             )
