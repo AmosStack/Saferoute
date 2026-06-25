@@ -24,10 +24,6 @@ def ensure_schema() -> None:
           area_name VARCHAR(120),
           district_id INT,
           ward_id INT,
-          boundary_min_lat DECIMAL(10, 8),
-          boundary_max_lat DECIMAL(10, 8),
-          boundary_min_lng DECIMAL(11, 8),
-          boundary_max_lng DECIMAL(11, 8),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
@@ -36,10 +32,6 @@ def ensure_schema() -> None:
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS area_name VARCHAR(120)",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS district_id INT",
         "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS ward_id INT",
-        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_min_lat DECIMAL(10, 8)",
-        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_max_lat DECIMAL(10, 8)",
-        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_min_lng DECIMAL(11, 8)",
-        "ALTER TABLE saferoute.admins ADD COLUMN IF NOT EXISTS boundary_max_lng DECIMAL(11, 8)",
         """
         CREATE TABLE IF NOT EXISTS saferoute.districts (
           id SERIAL PRIMARY KEY,
