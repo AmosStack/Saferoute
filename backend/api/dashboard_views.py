@@ -76,8 +76,7 @@ def _current_admin(request: HttpRequest) -> dict | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                  SELECT username, password_hash, role, area_level, area_name, district_id, ward_id,
-                      boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
+                  SELECT username, password_hash, role, area_level, area_name, district_id, ward_id
                 FROM saferoute.admins
                 WHERE username = %s
                 LIMIT 1
@@ -95,10 +94,6 @@ def _current_admin(request: HttpRequest) -> dict | None:
             "area_name": row[4],
             "district_id": row[5],
             "ward_id": row[6],
-            "boundary_min_lat": row[7],
-            "boundary_max_lat": row[8],
-            "boundary_min_lng": row[9],
-            "boundary_max_lng": row[10],
         }
 
     if header.startswith("Basic "):
@@ -109,7 +104,7 @@ def _current_admin(request: HttpRequest) -> dict | None:
             if admin and _password_matches(supplied_password, admin["password_hash"]):
                 return admin
             if supplied_username == username_env and supplied_password == password_env:
-                return {"username": supplied_username, "password_hash": password_env, "role": "super_admin", "area_level": None, "area_name": None, "district_id": None, "ward_id": None, "boundary_min_lat": None, "boundary_max_lat": None, "boundary_min_lng": None, "boundary_max_lng": None}
+                return {"username": supplied_username, "password_hash": password_env, "role": "super_admin", "area_level": None, "area_name": None, "district_id": None, "ward_id": None}
         except Exception:
             pass
 
@@ -121,7 +116,7 @@ def _current_admin(request: HttpRequest) -> dict | None:
             if admin:
                 return admin
             if unsigned == username_env:
-                return {"username": unsigned, "password_hash": password_env, "role": "super_admin", "area_level": None, "area_name": None, "district_id": None, "ward_id": None, "boundary_min_lat": None, "boundary_max_lat": None, "boundary_min_lng": None, "boundary_max_lng": None}
+                return {"username": unsigned, "password_hash": password_env, "role": "super_admin", "area_level": None, "area_name": None, "district_id": None, "ward_id": None}
         except BadSignature:
             pass
 
@@ -138,18 +133,75 @@ def _scope_requires_area(role: str) -> bool:
     return role in SCOPED_OFFICER_ROLES
 
 
+def _admin_boundary(admin: dict | None) -> dict | None:
+    if not admin:
+        return None
+
+    role = admin.get("role", "super_admin")
+    if role not in SCOPED_OFFICER_ROLES:
+        return None
+
+    ward_id = admin.get("ward_id")
+    if ward_id is not None:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
+                FROM saferoute.wards
+                WHERE fid = %s
+                """,
+                [ward_id],
+            )
+            return _dictfetchone(cursor)
+
+    district_id = admin.get("district_id")
+    area_name = admin.get("area_name")
+    with connection.cursor() as cursor:
+        if district_id is not None:
+            cursor.execute(
+                """
+                SELECT MIN(boundary_min_lat) AS boundary_min_lat,
+                       MAX(boundary_max_lat) AS boundary_max_lat,
+                       MIN(boundary_min_lng) AS boundary_min_lng,
+                       MAX(boundary_max_lng) AS boundary_max_lng
+                FROM saferoute.wards
+                WHERE district_id = %s
+                """,
+                [district_id],
+            )
+        elif area_name:
+            cursor.execute(
+                """
+                SELECT MIN(boundary_min_lat) AS boundary_min_lat,
+                       MAX(boundary_max_lat) AS boundary_max_lat,
+                       MIN(boundary_min_lng) AS boundary_min_lng,
+                       MAX(boundary_max_lng) AS boundary_max_lng
+                FROM saferoute.wards
+                WHERE COALESCE(district_name, dist_name) = %s
+                """,
+                [area_name],
+            )
+        else:
+            return None
+        return _dictfetchone(cursor)
+
+
 def _scope_sql(admin: dict | None, route_alias: str = "rr", location_alias: str = "l", user_alias: str = "u") -> tuple[str, list[str]]:
     if not admin:
         return "1=1", []
 
     role = admin.get("role", "super_admin")
-    boundary_min_lat = admin.get("boundary_min_lat")
-    boundary_max_lat = admin.get("boundary_max_lat")
-    boundary_min_lng = admin.get("boundary_min_lng")
-    boundary_max_lng = admin.get("boundary_max_lng")
 
     if role not in SCOPED_OFFICER_ROLES:
         return "1=1", []
+
+    boundary = _admin_boundary(admin)
+    if not boundary:
+        return "1=0", []
+    boundary_min_lat = boundary.get("boundary_min_lat")
+    boundary_max_lat = boundary.get("boundary_max_lat")
+    boundary_min_lng = boundary.get("boundary_min_lng")
+    boundary_max_lng = boundary.get("boundary_max_lng")
 
     if boundary_min_lat is None or boundary_max_lat is None or boundary_min_lng is None or boundary_max_lng is None:
         return "1=0", []
@@ -178,13 +230,17 @@ def _location_scope_sql(admin: dict | None, location_alias: str = "l") -> tuple[
         return "1=1", []
 
     role = admin.get("role", "super_admin")
-    boundary_min_lat = admin.get("boundary_min_lat")
-    boundary_max_lat = admin.get("boundary_max_lat")
-    boundary_min_lng = admin.get("boundary_min_lng")
-    boundary_max_lng = admin.get("boundary_max_lng")
 
     if role not in SCOPED_OFFICER_ROLES:
         return "1=1", []
+
+    boundary = _admin_boundary(admin)
+    if not boundary:
+        return "1=0", []
+    boundary_min_lat = boundary.get("boundary_min_lat")
+    boundary_max_lat = boundary.get("boundary_max_lat")
+    boundary_min_lng = boundary.get("boundary_min_lng")
+    boundary_max_lng = boundary.get("boundary_max_lng")
 
     if boundary_min_lat is None or boundary_max_lat is None or boundary_min_lng is None or boundary_max_lng is None:
         return "1=0", []
@@ -291,7 +347,7 @@ def _admin_scope_params(
     role: str,
     district_id: str | None,
     ward_id: str | None,
-) -> tuple[str | None, str | None, int | None, int | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
+) -> tuple[str | None, str | None, int | None, int | None]:
     district_key = district_id or None
     selected_ward_id = int(ward_id) if ward_id else None
 
@@ -308,10 +364,6 @@ def _admin_scope_params(
             district["name"],
             district.get("id"),
             None,
-            district["boundary_min_lat"],
-            district["boundary_max_lat"],
-            district["boundary_min_lng"],
-            district["boundary_max_lng"],
         )
 
     if role == "ward_security_officer":
@@ -342,13 +394,9 @@ def _admin_scope_params(
             ward["name"],
             ward["district_id"],
             ward["id"],
-            ward["boundary_min_lat"],
-            ward["boundary_max_lat"],
-            ward["boundary_min_lng"],
-            ward["boundary_max_lng"],
         )
 
-    return None, None, None, None, None, None, None, None
+    return None, None, None, None
 
 
 def _password_matches(raw_password: str, stored_hash: str) -> bool:
@@ -444,9 +492,7 @@ def admins_list(request: HttpRequest):
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
-            SELECT id, username, role, area_level, area_name, district_id, ward_id,
-                   boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng,
-                   created_at
+            SELECT id, username, role, area_level, area_name, district_id, ward_id, created_at
             FROM saferoute.admins
             {where}
             ORDER BY created_at DESC, username ASC
@@ -500,7 +546,7 @@ def admin_create(request: HttpRequest):
     if role not in ADMIN_ROLE_VALUES:
         return _redirect("admins_list", error="Choose a valid admin role.")
     try:
-        area_level, area_name, district_id, ward_id, boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng = _admin_scope_params(
+        area_level, area_name, district_id, ward_id = _admin_scope_params(
             role,
             district_id,
             ward_id,
@@ -520,10 +566,9 @@ def admin_create(request: HttpRequest):
             cursor.execute(
                 """
                 INSERT INTO saferoute.admins (
-                    username, password_hash, role, area_level, area_name, district_id, ward_id,
-                    boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
+                    username, password_hash, role, area_level, area_name, district_id, ward_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
                     username,
@@ -533,10 +578,6 @@ def admin_create(request: HttpRequest):
                     area_name,
                     district_id,
                     ward_id,
-                    boundary_min_lat,
-                    boundary_max_lat,
-                    boundary_min_lng,
-                    boundary_max_lng,
                 ],
             )
         return _redirect("admins_list", message="Admin created.")
@@ -556,7 +597,7 @@ def admin_update(request: HttpRequest, admin_id: int):
     if role not in ADMIN_ROLE_VALUES:
         return _redirect("admins_list", error="Choose a valid admin role.")
     try:
-        area_level, area_name, district_id, ward_id, boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng = _admin_scope_params(
+        area_level, area_name, district_id, ward_id = _admin_scope_params(
             role,
             district_id,
             ward_id,
@@ -567,7 +608,7 @@ def admin_update(request: HttpRequest, admin_id: int):
     try:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT username, role, area_level, area_name, district_id, ward_id, boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng FROM saferoute.admins WHERE id = %s",
+                "SELECT username, role, area_level, area_name, district_id, ward_id FROM saferoute.admins WHERE id = %s",
                 [admin_id],
             )
             row = cursor.fetchone()
@@ -588,11 +629,7 @@ def admin_update(request: HttpRequest, admin_id: int):
                     area_level = %s,
                     area_name = %s,
                     district_id = %s,
-                    ward_id = %s,
-                    boundary_min_lat = %s,
-                    boundary_max_lat = %s,
-                    boundary_min_lng = %s,
-                    boundary_max_lng = %s
+                    ward_id = %s
                 WHERE id = %s
                 """,
                 [
@@ -601,10 +638,6 @@ def admin_update(request: HttpRequest, admin_id: int):
                     area_name,
                     district_id,
                     ward_id,
-                    boundary_min_lat,
-                    boundary_max_lat,
-                    boundary_min_lng,
-                    boundary_max_lng,
                     admin_id,
                 ],
             )
