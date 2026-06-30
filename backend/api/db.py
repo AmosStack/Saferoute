@@ -81,6 +81,8 @@ def ensure_schema() -> None:
           start_longitude DECIMAL(11, 8) NOT NULL,
           end_latitude DECIMAL(10, 8) NOT NULL,
           end_longitude DECIMAL(11, 8) NOT NULL,
+          district_id INT,
+          ward_id INT,
           coordinates JSONB NOT NULL,
           distance_meters DOUBLE PRECISION NOT NULL,
           duration_seconds INT NOT NULL,
@@ -102,6 +104,8 @@ def ensure_schema() -> None:
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS start_location_name TEXT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS end_location_name TEXT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS transport_mode TEXT NOT NULL DEFAULT 'walking'",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS district_id INT",
+        "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS ward_id INT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS fare_cost NUMERIC(10, 2)",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS waiting_time_minutes INT",
         "ALTER TABLE saferoute.recorded_routes ADD COLUMN IF NOT EXISTS transfer_count INT",
@@ -120,9 +124,13 @@ def ensure_schema() -> None:
           name TEXT,
           latitude DECIMAL(10,8),
           longitude DECIMAL(11,8),
+          district_id INT,
+          ward_id INT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        "ALTER TABLE saferoute.locations ADD COLUMN IF NOT EXISTS district_id INT",
+        "ALTER TABLE saferoute.locations ADD COLUMN IF NOT EXISTS ward_id INT",
         """
         CREATE TABLE IF NOT EXISTS saferoute.routes (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
