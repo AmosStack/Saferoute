@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS saferoute.locations (
     name TEXT,
     latitude DECIMAL(10,8),
     longitude DECIMAL(11,8),
+    district_id INT,
+    ward_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -73,6 +75,8 @@ CREATE TABLE IF NOT EXISTS saferoute.recorded_routes (
 
     end_latitude DECIMAL(10,8) NOT NULL,
     end_longitude DECIMAL(11,8) NOT NULL,
+    district_id INT,
+    ward_id INT,
 
     coordinates JSONB NOT NULL,
 
