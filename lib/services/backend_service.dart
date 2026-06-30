@@ -208,6 +208,8 @@ class BackendService {
   static Future<String?> saveRoute({
     required int userId,
     required RecordedRoute route,
+    int? districtId,
+    int? wardId,
   }) async {
     try {
       final response = await _postWithFallback('/routes/record', {
@@ -219,6 +221,8 @@ class BackendService {
         'startLongitude': route.startPoint.longitude,
         'endLatitude': route.endPoint.latitude,
         'endLongitude': route.endPoint.longitude,
+        'districtId': districtId,
+        'wardId': wardId,
         'coordinates': route.coordinates
             .map((c) => {'lat': c.latitude, 'lng': c.longitude})
             .toList(),
@@ -331,12 +335,16 @@ class BackendService {
     required String name,
     required double latitude,
     required double longitude,
+    int? districtId,
+    int? wardId,
   }) async {
     try {
       final response = await _postWithFallback('/locations', {
         'name': name,
         'latitude': latitude,
         'longitude': longitude,
+        'districtId': districtId,
+        'wardId': wardId,
       });
 
       if (response.statusCode == 200) {
