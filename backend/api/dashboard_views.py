@@ -227,7 +227,7 @@ def _admin_scope_params(
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT district_id AS id, COALESCE(district_name, dist_name) AS name
+                SELECT district_id AS id, district_name AS name
                 FROM (
                     SELECT
                         COALESCE(district_id, NULLIF(regexp_replace(dist_code, '\\D', '', 'g'), '')::int) AS district_id,
