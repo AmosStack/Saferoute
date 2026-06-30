@@ -34,7 +34,7 @@
       <select name="district_id" class="district-select">
         <option value="">Choose district</option>
         {% for district in districts %}
-        <option value="{{ district.key }}">{{ district.name }}</option>
+        <option value="{{ district.id }}">{{ district.name }}</option>
         {% endfor %}
       </select>
     </label>
@@ -42,7 +42,7 @@
       <select name="ward_id" class="ward-select">
         <option value="">Choose ward</option>
         {% for ward in wards %}
-        <option value="{{ ward.id }}" data-district-id="{{ ward.district_key }}">{{ ward.name }}</option>
+        <option value="{{ ward.id }}" data-district-id="{{ ward.district_id }}">{{ ward.name }}</option>
         {% endfor %}
       </select>
     </label>
@@ -87,13 +87,13 @@
             <select name="district_id" class="district-select district-field">
               <option value="">Choose district</option>
               {% for district in districts %}
-              <option value="{{ district.key }}" {% if admin.district_key == district.key %}selected{% endif %}>{{ district.name }}</option>
+              <option value="{{ district.id }}" {% if admin.district_id == district.id %}selected{% endif %}>{{ district.name }}</option>
               {% endfor %}
             </select>
             <select name="ward_id" class="ward-select ward-field">
               <option value="">Choose ward</option>
               {% for ward in wards %}
-              <option value="{{ ward.id }}" data-district-id="{{ ward.district_key }}" {% if admin.ward_id == ward.id %}selected{% endif %}>{{ ward.name }}</option>
+              <option value="{{ ward.id }}" data-district-id="{{ ward.district_id }}" {% if admin.ward_id == ward.id %}selected{% endif %}>{{ ward.name }}</option>
               {% endfor %}
             </select>
             <button class="primary" type="submit">Save</button>
