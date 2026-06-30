@@ -179,12 +179,18 @@ def _district_rows() -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT district_id AS id, COALESCE(district_name, dist_name) AS name
-            FROM saferoute.wards
-            WHERE district_id IS NOT NULL
-              AND COALESCE(district_name, dist_name) IS NOT NULL
-              AND COALESCE(district_name, dist_name) <> ''
-            GROUP BY district_id, COALESCE(district_name, dist_name)
+            WITH ward_districts AS (
+                SELECT
+                    COALESCE(district_id, NULLIF(regexp_replace(dist_code, '\\D', '', 'g'), '')::int) AS id,
+                    COALESCE(district_name, dist_name) AS name
+                FROM saferoute.wards
+            )
+            SELECT id, name
+            FROM ward_districts
+            WHERE id IS NOT NULL
+              AND name IS NOT NULL
+              AND name <> ''
+            GROUP BY id, name
             ORDER BY name
             """
         )
@@ -195,10 +201,11 @@ def _ward_rows() -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name, w.district_id,
+            SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name,
+                   COALESCE(w.district_id, NULLIF(regexp_replace(w.dist_code, '\\D', '', 'g'), '')::int) AS district_id,
                    COALESCE(w.district_name, w.dist_name) AS district_name
             FROM saferoute.wards w
-            WHERE w.district_id IS NOT NULL
+            WHERE COALESCE(w.district_id, NULLIF(regexp_replace(w.dist_code, '\\D', '', 'g'), '')::int) IS NOT NULL
               AND COALESCE(w.name, w.ward_name) IS NOT NULL
             ORDER BY COALESCE(w.district_name, w.dist_name), COALESCE(w.name, w.ward_name)
             """
@@ -221,9 +228,14 @@ def _admin_scope_params(
             cursor.execute(
                 """
                 SELECT district_id AS id, COALESCE(district_name, dist_name) AS name
-                FROM saferoute.wards
+                FROM (
+                    SELECT
+                        COALESCE(district_id, NULLIF(regexp_replace(dist_code, '\\D', '', 'g'), '')::int) AS district_id,
+                        COALESCE(district_name, dist_name) AS district_name
+                    FROM saferoute.wards
+                ) ward_districts
                 WHERE district_id = %s
-                GROUP BY district_id, COALESCE(district_name, dist_name)
+                GROUP BY district_id, district_name
                 """,
                 [selected_district_id],
             )
@@ -244,9 +256,11 @@ def _admin_scope_params(
             cursor.execute(
                 """
                 SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name,
-                       w.district_id, COALESCE(w.district_name, w.dist_name) AS district_name
+                       COALESCE(w.district_id, NULLIF(regexp_replace(w.dist_code, '\\D', '', 'g'), '')::int) AS district_id,
+                       COALESCE(w.district_name, w.dist_name) AS district_name
                 FROM saferoute.wards w
-                WHERE w.fid = %s AND w.district_id = %s
+                WHERE w.fid = %s
+                  AND COALESCE(w.district_id, NULLIF(regexp_replace(w.dist_code, '\\D', '', 'g'), '')::int) = %s
                 """,
                 [selected_ward_id, selected_district_id],
             )
