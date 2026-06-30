@@ -303,9 +303,7 @@
         <a class="{% if active == 'routes' %}active{% endif %}" href="/dashboard/routes">Routes</a>
         <a class="{% if active == 'analytics' %}active{% endif %}" href="/dashboard/analytics">Analytics</a>
         <a class="{% if active == 'gis' %}active{% endif %}" href="/dashboard/gis">GIS & Policy</a>
-        {% if request.safe_route_admin %}
         <a class="logout" href="{% url 'dashboard_logout' %}">Log out</a>
-        {% endif %}
       </nav>
     </aside>
     <main class="main">
