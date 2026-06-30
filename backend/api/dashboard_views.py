@@ -133,59 +133,6 @@ def _scope_requires_area(role: str) -> bool:
     return role in SCOPED_OFFICER_ROLES
 
 
-def _admin_boundary(admin: dict | None) -> dict | None:
-    if not admin:
-        return None
-
-    role = admin.get("role", "super_admin")
-    if role not in SCOPED_OFFICER_ROLES:
-        return None
-
-    ward_id = admin.get("ward_id")
-    if ward_id is not None:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
-                FROM saferoute.wards
-                WHERE fid = %s
-                """,
-                [ward_id],
-            )
-            return _dictfetchone(cursor)
-
-    district_id = admin.get("district_id")
-    area_name = admin.get("area_name")
-    with connection.cursor() as cursor:
-        if district_id is not None:
-            cursor.execute(
-                """
-                SELECT MIN(boundary_min_lat) AS boundary_min_lat,
-                       MAX(boundary_max_lat) AS boundary_max_lat,
-                       MIN(boundary_min_lng) AS boundary_min_lng,
-                       MAX(boundary_max_lng) AS boundary_max_lng
-                FROM saferoute.wards
-                WHERE district_id = %s
-                """,
-                [district_id],
-            )
-        elif area_name:
-            cursor.execute(
-                """
-                SELECT MIN(boundary_min_lat) AS boundary_min_lat,
-                       MAX(boundary_max_lat) AS boundary_max_lat,
-                       MIN(boundary_min_lng) AS boundary_min_lng,
-                       MAX(boundary_max_lng) AS boundary_max_lng
-                FROM saferoute.wards
-                WHERE COALESCE(district_name, dist_name) = %s
-                """,
-                [area_name],
-            )
-        else:
-            return None
-        return _dictfetchone(cursor)
-
-
 def _scope_sql(admin: dict | None, route_alias: str = "rr", location_alias: str = "l", user_alias: str = "u") -> tuple[str, list[str]]:
     if not admin:
         return "1=1", []
@@ -195,34 +142,16 @@ def _scope_sql(admin: dict | None, route_alias: str = "rr", location_alias: str 
     if role not in SCOPED_OFFICER_ROLES:
         return "1=1", []
 
-    boundary = _admin_boundary(admin)
-    if not boundary:
-        return "1=0", []
-    boundary_min_lat = boundary.get("boundary_min_lat")
-    boundary_max_lat = boundary.get("boundary_max_lat")
-    boundary_min_lng = boundary.get("boundary_min_lng")
-    boundary_max_lng = boundary.get("boundary_max_lng")
+    if role == "ward_security_officer":
+        ward_id = admin.get("ward_id")
+        if ward_id is None:
+            return "1=0", []
+        return f"{route_alias}.ward_id = %s", [ward_id]
 
-    if boundary_min_lat is None or boundary_max_lat is None or boundary_min_lng is None or boundary_max_lng is None:
+    district_id = admin.get("district_id")
+    if district_id is None:
         return "1=0", []
-
-    params = [
-        boundary_min_lat,
-        boundary_max_lat,
-        boundary_min_lng,
-        boundary_max_lng,
-        boundary_min_lat,
-        boundary_max_lat,
-        boundary_min_lng,
-        boundary_max_lng,
-    ]
-    clause = (
-        f"((({route_alias}.start_latitude IS NOT NULL AND {route_alias}.start_longitude IS NOT NULL) AND "
-        f"{route_alias}.start_latitude BETWEEN %s AND %s AND {route_alias}.start_longitude BETWEEN %s AND %s) OR "
-        f"(({route_alias}.end_latitude IS NOT NULL AND {route_alias}.end_longitude IS NOT NULL) AND "
-        f"{route_alias}.end_latitude BETWEEN %s AND %s AND {route_alias}.end_longitude BETWEEN %s AND %s))"
-    )
-    return clause, params
+    return f"{route_alias}.district_id = %s", [district_id]
 
 
 def _location_scope_sql(admin: dict | None, location_alias: str = "l") -> tuple[str, list[str]]:
@@ -234,41 +163,26 @@ def _location_scope_sql(admin: dict | None, location_alias: str = "l") -> tuple[
     if role not in SCOPED_OFFICER_ROLES:
         return "1=1", []
 
-    boundary = _admin_boundary(admin)
-    if not boundary:
-        return "1=0", []
-    boundary_min_lat = boundary.get("boundary_min_lat")
-    boundary_max_lat = boundary.get("boundary_max_lat")
-    boundary_min_lng = boundary.get("boundary_min_lng")
-    boundary_max_lng = boundary.get("boundary_max_lng")
+    if role == "ward_security_officer":
+        ward_id = admin.get("ward_id")
+        if ward_id is None:
+            return "1=0", []
+        return f"{location_alias}.ward_id = %s", [ward_id]
 
-    if boundary_min_lat is None or boundary_max_lat is None or boundary_min_lng is None or boundary_max_lng is None:
+    district_id = admin.get("district_id")
+    if district_id is None:
         return "1=0", []
-
-    clause = (
-        f"{location_alias}.latitude IS NOT NULL AND {location_alias}.longitude IS NOT NULL AND "
-        f"{location_alias}.latitude BETWEEN %s AND %s AND {location_alias}.longitude BETWEEN %s AND %s"
-    )
-    return clause, [boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng]
+    return f"{location_alias}.district_id = %s", [district_id]
 
 
 def _district_rows() -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT
-                   CASE
-                     WHEN district_id IS NOT NULL THEN 'district:' || district_id::text
-                     ELSE 'ward-district:' || COALESCE(district_name, dist_name)
-                   END AS key,
-                   district_id AS id,
-                   COALESCE(district_name, dist_name) AS name,
-                   MIN(boundary_min_lat) AS boundary_min_lat,
-                   MAX(boundary_max_lat) AS boundary_max_lat,
-                   MIN(boundary_min_lng) AS boundary_min_lng,
-                   MAX(boundary_max_lng) AS boundary_max_lng
+            SELECT district_id AS id, COALESCE(district_name, dist_name) AS name
             FROM saferoute.wards
-            WHERE COALESCE(district_name, dist_name) IS NOT NULL
+            WHERE district_id IS NOT NULL
+              AND COALESCE(district_name, dist_name) IS NOT NULL
               AND COALESCE(district_name, dist_name) <> ''
             GROUP BY district_id, COALESCE(district_name, dist_name)
             ORDER BY name
@@ -282,65 +196,14 @@ def _ward_rows() -> list[dict]:
         cursor.execute(
             """
             SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name, w.district_id,
-                   COALESCE(w.district_name, w.dist_name) AS district_name,
-                   CASE
-                     WHEN w.district_id IS NOT NULL THEN 'district:' || w.district_id::text
-                     ELSE 'ward-district:' || COALESCE(w.district_name, w.dist_name)
-                   END AS district_key,
-                   w.boundary_min_lat, w.boundary_max_lat, w.boundary_min_lng, w.boundary_max_lng
+                   COALESCE(w.district_name, w.dist_name) AS district_name
             FROM saferoute.wards w
-            WHERE COALESCE(w.name, w.ward_name) IS NOT NULL
+            WHERE w.district_id IS NOT NULL
+              AND COALESCE(w.name, w.ward_name) IS NOT NULL
             ORDER BY COALESCE(w.district_name, w.dist_name), COALESCE(w.name, w.ward_name)
             """
         )
         return _dictfetchall(cursor)
-
-
-def _resolve_district_scope(district_key: str) -> dict | None:
-    if district_key.startswith("district:"):
-        district_id = int(district_key.removeprefix("district:"))
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT district_id AS id, COALESCE(district_name, dist_name) AS name,
-                       MIN(boundary_min_lat) AS boundary_min_lat,
-                       MAX(boundary_max_lat) AS boundary_max_lat,
-                       MIN(boundary_min_lng) AS boundary_min_lng,
-                       MAX(boundary_max_lng) AS boundary_max_lng
-                FROM saferoute.wards
-                WHERE district_id = %s
-                GROUP BY district_id, COALESCE(district_name, dist_name)
-                """,
-                [district_id],
-            )
-            return _dictfetchone(cursor)
-
-    if district_key.startswith("ward-district:"):
-        district_name = district_key.removeprefix("ward-district:")
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT NULL AS id, COALESCE(district_name, dist_name) AS name,
-                       MIN(boundary_min_lat) AS boundary_min_lat,
-                       MAX(boundary_max_lat) AS boundary_max_lat,
-                       MIN(boundary_min_lng) AS boundary_min_lng,
-                       MAX(boundary_max_lng) AS boundary_max_lng
-                FROM saferoute.wards
-                WHERE COALESCE(district_name, dist_name) = %s
-                GROUP BY COALESCE(district_name, dist_name), district_name
-                """,
-                [district_name],
-            )
-            return _dictfetchone(cursor)
-
-    return None
-
-
-def _area_has_boundary(area: dict) -> bool:
-    return all(
-        area.get(key) is not None
-        for key in ("boundary_min_lat", "boundary_max_lat", "boundary_min_lng", "boundary_max_lng")
-    )
 
 
 def _admin_scope_params(
@@ -348,47 +211,48 @@ def _admin_scope_params(
     district_id: str | None,
     ward_id: str | None,
 ) -> tuple[str | None, str | None, int | None, int | None]:
-    district_key = district_id or None
+    selected_district_id = int(district_id) if district_id else None
     selected_ward_id = int(ward_id) if ward_id else None
 
     if role == "district_security_officer":
-        if district_key is None:
+        if selected_district_id is None:
             raise ValueError("Choose a district for district security officers.")
-        district = _resolve_district_scope(district_key)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT district_id AS id, COALESCE(district_name, dist_name) AS name
+                FROM saferoute.wards
+                WHERE district_id = %s
+                GROUP BY district_id, COALESCE(district_name, dist_name)
+                """,
+                [selected_district_id],
+            )
+            district = _dictfetchone(cursor)
         if not district:
-            raise ValueError("Choose a valid district.")
-        if not _area_has_boundary(district):
-            raise ValueError("The selected district does not have complete boundary values.")
+            raise ValueError("Choose a valid district id from the wards table.")
         return (
             "district",
             district["name"],
-            district.get("id"),
+            district["id"],
             None,
         )
 
     if role == "ward_security_officer":
-        if district_key is None or selected_ward_id is None:
+        if selected_district_id is None or selected_ward_id is None:
             raise ValueError("Choose both a district and ward for ward security officers.")
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT w.fid AS id, COALESCE(w.name, w.ward_name) AS name,
-                       w.district_id, COALESCE(w.district_name, w.dist_name) AS district_name,
-                       CASE
-                         WHEN w.district_id IS NOT NULL THEN 'district:' || w.district_id::text
-                         ELSE 'ward-district:' || COALESCE(w.district_name, w.dist_name)
-                       END AS district_key,
-                       w.boundary_min_lat, w.boundary_max_lat, w.boundary_min_lng, w.boundary_max_lng
+                       w.district_id, COALESCE(w.district_name, w.dist_name) AS district_name
                 FROM saferoute.wards w
-                WHERE w.fid = %s
+                WHERE w.fid = %s AND w.district_id = %s
                 """,
-                [selected_ward_id],
+                [selected_ward_id, selected_district_id],
             )
             ward = _dictfetchone(cursor)
-        if not ward or ward["district_key"] != district_key:
-            raise ValueError("Choose a valid ward in the selected district.")
-        if not _area_has_boundary(ward):
-            raise ValueError("The selected ward does not have complete boundary values.")
+        if not ward:
+            raise ValueError("Choose a valid ward id in the selected district.")
         return (
             "ward",
             ward["name"],
@@ -502,16 +366,6 @@ def admins_list(request: HttpRequest):
         admins = _dictfetchall(cursor)
     districts = _district_rows()
     wards = _ward_rows()
-    ward_keys = {ward["id"]: ward["district_key"] for ward in wards}
-    for admin in admins:
-        if admin.get("district_id") is not None:
-            admin["district_key"] = f"district:{admin['district_id']}"
-        elif admin.get("ward_id") is not None:
-            admin["district_key"] = ward_keys.get(admin["ward_id"])
-        elif admin.get("area_level") == "district" and admin.get("area_name"):
-            admin["district_key"] = f"ward-district:{admin['area_name']}"
-        else:
-            admin["district_key"] = ""
 
     return render(
         request,
