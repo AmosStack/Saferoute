@@ -221,11 +221,11 @@ def record_route(request: HttpRequest) -> JsonResponse:
                 """
                 INSERT INTO saferoute.recorded_routes
                   (id, user_id, start_location_name, end_location_name, transport_mode,
-                   start_latitude, start_longitude, end_latitude, end_longitude, coordinates,
+                   start_latitude, start_longitude, end_latitude, end_longitude, district_id, ward_id, coordinates,
                    distance_meters, duration_seconds, rating, notes, fare_cost,
                    waiting_time_minutes, transfer_count, safety_assessment, consent_accepted,
                    started_at, ended_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
                 """,
                 [
                     route_id,
@@ -237,6 +237,8 @@ def record_route(request: HttpRequest) -> JsonResponse:
                     payload.get("startLongitude"),
                     payload.get("endLatitude"),
                     payload.get("endLongitude"),
+                    payload.get("districtId"),
+                    payload.get("wardId"),
                     json.dumps(payload.get("coordinates")),
                     payload.get("distance"),
                     payload.get("duration"),
@@ -266,7 +268,7 @@ def get_user_routes(request: HttpRequest, user_id: int) -> JsonResponse:
                 """
                 SELECT id, start_location_name, end_location_name, transport_mode,
                        start_latitude, start_longitude, end_latitude, end_longitude,
-                       coordinates, distance_meters, duration_seconds, rating, notes,
+                       district_id, ward_id, coordinates, distance_meters, duration_seconds, rating, notes,
                        fare_cost, waiting_time_minutes, transfer_count, safety_assessment, consent_accepted,
                        started_at, ended_at, created_at
                 FROM saferoute.recorded_routes
@@ -298,21 +300,23 @@ def get_user_routes(request: HttpRequest, user_id: int) -> JsonResponse:
                         "lat": _to_json_value(row[6]),
                         "lng": _to_json_value(row[7]),
                     },
-                    "coordinates": _json_field(row[8]),
-                    "distance": _to_json_value(row[9]),
-                    "duration": row[10],
-                    "rating": row[11],
-                    "notes": row[12],
-                    "fareCost": _to_json_value(row[13]),
-                    "waitingTimeMinutes": row[14],
-                    "transferCount": row[15],
-                    "safetyAssessment": _json_field(row[16]) or {},
-                    "consentAccepted": row[17],
-                    "startedAt": str(row[18]),
-                    "endedAt": str(row[19]),
-                    "startTime": str(row[18]),
-                    "endTime": str(row[19]),
-                    "createdAt": str(row[20]),
+                    "districtId": row[8],
+                    "wardId": row[9],
+                    "coordinates": _json_field(row[10]),
+                    "distance": _to_json_value(row[11]),
+                    "duration": row[12],
+                    "rating": row[13],
+                    "notes": row[14],
+                    "fareCost": _to_json_value(row[15]),
+                    "waitingTimeMinutes": row[16],
+                    "transferCount": row[17],
+                    "safetyAssessment": _json_field(row[18]) or {},
+                    "consentAccepted": row[19],
+                    "startedAt": str(row[20]),
+                    "endedAt": str(row[21]),
+                    "startTime": str(row[20]),
+                    "endTime": str(row[21]),
+                    "createdAt": str(row[22]),
                 }
             )
 
@@ -356,11 +360,17 @@ def create_location(request: HttpRequest) -> JsonResponse:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO saferoute.locations (name, latitude, longitude)
-                VALUES (%s, %s, %s)
+                INSERT INTO saferoute.locations (name, latitude, longitude, district_id, ward_id)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                [payload.get("name"), payload.get("latitude"), payload.get("longitude")],
+                [
+                    payload.get("name"),
+                    payload.get("latitude"),
+                    payload.get("longitude"),
+                    payload.get("districtId"),
+                    payload.get("wardId"),
+                ],
             )
             location_id = cursor.fetchone()[0]
 
