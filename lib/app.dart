@@ -201,7 +201,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
           side: BorderSide(color: _brandGreen.withValues(alpha: 0.08)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
         ),
-        pageTransitionsTheme: const PageTransitionsTheme(
+        pageTransitionsTheme: PageTransitionsTheme(   // <-- const removed
           builders: {
             TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
             TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
