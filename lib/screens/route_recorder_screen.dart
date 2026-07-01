@@ -1324,23 +1324,23 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                 ),
             },
             polylines: {
-              // planned traveled segment (already passed on planned path)
+              // planned traveled segment (already passed - show in green)
               if (plannedTraveled.length > 1)
                 gmaps.Polyline(
                   polylineId: const gmaps.PolylineId('planned_traveled'),
                   points: plannedTraveled,
                   width: 6,
-                  color: Colors.grey.shade400,
+                  color: Colors.green.shade400,
                 ),
-              // planned remaining segment (the safest suggested route ahead)
+              // planned remaining segment (the safest suggested route ahead - show in blue)
               if (plannedRemaining.length > 1)
                 gmaps.Polyline(
                   polylineId: const gmaps.PolylineId('planned_remaining'),
                   points: plannedRemaining,
                   width: 6,
-                  color: const Color(0xFF0E7C7B),
+                  color: Colors.blueAccent,
                 ),
-              // actual recorded route (what the user has traveled)
+              // actual recorded route (what the user has traveled - show in blue)
               if (routePolylinePoints.length > 1)
                 gmaps.Polyline(
                   polylineId: const gmaps.PolylineId('recorded_route'),
