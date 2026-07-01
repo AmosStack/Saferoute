@@ -34,6 +34,8 @@ urlpatterns = [
     path("dashboard/analytics/", dashboard_views.analytics),
     path("dashboard/gis", dashboard_views.gis_policy_workspace, name="gis_policy_workspace"),
     path("dashboard/gis/", dashboard_views.gis_policy_workspace),
+    path("dashboard/my-ward-geojson", views.my_ward_geojson, name="my_ward_geojson"),
+    path("dashboard/my-ward-geojson/", views.my_ward_geojson),
     path("health", views.health),
     path("health/", views.health),
     path("auth/register", views.register),
