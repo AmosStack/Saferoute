@@ -121,10 +121,79 @@
   const routeLayer = L.featureGroup();
   const complaintLayer = L.featureGroup();
   const densityLayer = L.featureGroup();
+  const wardLayer = L.featureGroup();
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map);
+
+  // Fetch the current admin's ward geometry and show only that ward on the map.
+  (function fetchAndShowWard(){
+    fetch('/dashboard/my-ward-geojson', { credentials: 'same-origin' })
+      .then((r) => {
+        if (!r.ok) throw new Error('Ward fetch failed: ' + r.status);
+        return r.json();
+      })
+      .then((geojson) => {
+        try {
+          if (!geojson || !geojson.features || !geojson.features.length) return;
+          const feat = geojson.features[0];
+
+          const wardGeo = L.geoJSON(feat, {
+            style: { color: '#d9534f', weight: 2, fillOpacity: 0.12 },
+            onEachFeature: (f, layer) => {
+              if (f.properties && f.properties.name) layer.bindPopup(`<strong>${f.properties.name}</strong>`);
+            }
+          });
+
+          // Create a full-world mask with the ward as a hole to grey out everything else
+          const worldOuter = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+          const geom = feat.geometry || {};
+          const masks = [];
+
+          if (geom.type === 'Polygon') {
+            const hole = (geom.coordinates[0] || []).map(pt => [pt[1], pt[0]]);
+            masks.push(L.polygon([worldOuter, hole], { color: null, fillColor: '#000', fillOpacity: 0.45, interactive: false }));
+          } else if (geom.type === 'MultiPolygon') {
+            geom.coordinates.forEach(poly => {
+              const hole = (poly[0] || []).map(pt => [pt[1], pt[0]]);
+              masks.push(L.polygon([worldOuter, hole], { color: null, fillColor: '#000', fillOpacity: 0.45, interactive: false }));
+            });
+          } else {
+            // Fallback: use bbox if geometry missing
+            const props = feat.properties || {};
+            if (props.boundary_min_lat !== undefined) {
+              const minLat = Number(props.boundary_min_lat);
+              const maxLat = Number(props.boundary_max_lat);
+              const minLng = Number(props.boundary_min_lng);
+              const maxLng = Number(props.boundary_max_lng);
+              const hole = [[minLat, minLng], [maxLat, minLng], [maxLat, maxLng], [minLat, maxLng], [minLat, minLng]];
+              masks.push(L.polygon([worldOuter, hole], { color: null, fillColor: '#000', fillOpacity: 0.45, interactive: false }));
+            }
+          }
+
+          masks.forEach(m => m.addTo(map));
+
+          // Add ward and ensure it is above the mask
+          wardLayer.clearLayers();
+          wardLayer.addLayer(wardGeo);
+          wardLayer.addTo(map);
+          wardGeo.bringToFront && wardGeo.bringToFront();
+
+          if (wardGeo.getBounds && wardGeo.getBounds().isValid && !wardGeo.getBounds().isValid()) {
+            // Some Leaflet builds provide isValid; ignore if not available.
+          }
+          if (wardGeo.getBounds) {
+            try { map.fitBounds(wardGeo.getBounds(), { padding: [20, 20] }); } catch (e) { /* ignore */ }
+          }
+        } catch (e) {
+          console.warn('Failed to render ward geometry', e);
+        }
+      })
+      .catch((err) => {
+        console.warn('No ward geometry or fetch failed', err);
+      });
+  })();
 
   function routePoints(route) {
     let coordinates = route.coordinates || [];
