@@ -4,7 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'auth/auth_models.dart';
 import 'screens/auth_screen.dart';
 import 'screens/splash_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'services/auth_service.dart';
 import 'services/user_settings_service.dart';
 
@@ -309,7 +309,7 @@ class _SafeRouteAppState extends State<SafeRouteApp> {
                     localeCode: _localeCode,
                     onAuthenticated: _onAuthenticated,
                   )
-                : HomeScreen(
+                : MainNavigationScreen(
                     user: _session!.user,
                     onSignOut: _onSignOut,
                     localeCode: _localeCode,
