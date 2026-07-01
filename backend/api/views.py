@@ -17,6 +17,7 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
 from .db import ensure_schema
+from .dashboard_views import _dashboard_auth
 
 
 def _decode_request(request: HttpRequest) -> dict:
@@ -502,3 +503,56 @@ def create_incident(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"id": incident_id})
     except Exception as exc:
         return _server_error(f"Failed to create incident: {exc}")
+
+
+@require_GET
+@_dashboard_auth()
+def my_ward_geojson(request: HttpRequest) -> JsonResponse:
+    try:
+        ensure_schema()
+        admin = getattr(request, "safe_route_admin", None)
+        ward_id = admin.get("ward_id") if admin else None
+        if ward_id is None:
+            return JsonResponse({"message": "No ward assigned to this admin"}, status=404)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT fid, COALESCE(name, ward_name) AS name,
+                       district_id, boundary_min_lat, boundary_max_lat, boundary_min_lng, boundary_max_lng
+                FROM saferoute.wards
+                WHERE fid = %s LIMIT 1
+                """,
+                [ward_id],
+            )
+            row = cursor.fetchone()
+
+        if not row:
+            return JsonResponse({"message": "Ward not found"}, status=404)
+
+        fid, name, district_id, min_lat, max_lat, min_lng, max_lng = row
+
+        coordinates = [
+            [
+                [float(min_lng), float(min_lat)],
+                [float(min_lng), float(max_lat)],
+                [float(max_lng), float(max_lat)],
+                [float(max_lng), float(min_lat)],
+                [float(min_lng), float(min_lat)],
+            ]
+        ]
+
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"id": fid, "name": name, "district_id": district_id},
+                    "geometry": {"type": "Polygon", "coordinates": coordinates},
+                }
+            ],
+        }
+
+        return JsonResponse(feature_collection)
+    except Exception as exc:
+        return _server_error(f"Failed to fetch ward geometry: {exc}")
