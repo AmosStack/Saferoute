@@ -542,7 +542,8 @@ def _metrics(scope_sql: str = "1=1", scope_params: list[str] | None = None):
                         WHERE sr.route_id IN (SELECT id FROM scoped_routes)
                     )) AS incidents
                 """
-            )
+            ),
+            scope_params,
         )
         row = _dictfetchone(cursor)
 
@@ -783,7 +784,8 @@ def dashboard_home(request: HttpRequest):
             GROUP BY rr.transport_mode
             ORDER BY route_count DESC, rr.transport_mode
             LIMIT 6
-            """
+            """,
+            scope["scope_params"],
         )
         mode_rows = _dictfetchall(cursor)
 
@@ -1046,7 +1048,8 @@ def analytics(request: HttpRequest):
          """ + scope_clause + """
          GROUP BY rr.transport_mode
          ORDER BY route_count DESC
-         """
+         """,
+         scope["scope_params"],
         )
         mode_rows = _dictfetchall(cursor)
 
@@ -1059,7 +1062,8 @@ def analytics(request: HttpRequest):
          GROUP BY DATE(rr.created_at)
          ORDER BY travel_day DESC
          LIMIT 14
-         """
+         """,
+         scope["scope_params"],
         )
         daily_rows = _dictfetchall(cursor)
 
@@ -1073,7 +1077,8 @@ def analytics(request: HttpRequest):
          GROUP BY u.id, u.name, u.email
          ORDER BY distance_meters DESC
          LIMIT 10
-         """
+         """,
+         scope["scope_params"],
         )
         top_users = _dictfetchall(cursor)
 
