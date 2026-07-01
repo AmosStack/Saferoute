@@ -36,10 +36,11 @@ class AppStrings {
   String get continueFacebook => isSwahili ? 'Endelea na Facebook' : 'Continue with Facebook';
   String get signOut => isSwahili ? 'Toka' : 'Sign out';
   String get home => isSwahili ? 'Nyumbani' : 'Home';
+  String get map => isSwahili ? 'Ramani' : 'Map';
   String get routes => isSwahili ? 'Njia' : 'Routes';
-    String get account => isSwahili ? 'Akaunti' : 'Account';
-    @Deprecated('Use account')
-    String get community => account;
+  String get account => isSwahili ? 'Akaunti' : 'Account';
+  @Deprecated('Use account')
+  String get community => account;
   String welcomeUser(String name) => isSwahili ? 'Karibu, $name' : 'Welcome, $name';
   String get planTrip => isSwahili ? 'Panga safari yako ijayo' : 'Plan your next trip';
   String get heroSubtitle => isSwahili
