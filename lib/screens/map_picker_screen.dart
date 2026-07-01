@@ -503,10 +503,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   'Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100',
                 ),
                 Text('Distance: ${_formatDistance(option.totalDistance)}'),
-                Text('Base duration: ${_formatDuration(option.totalDuration)}'),
-                Text(
-                  'Safety-adjusted ETA: ${_formatDuration(option.safetyAdjustedDuration)}',
-                ),
                 Text(
                   option.hasBusStopsNearEndpoints
                       ? 'Bus stops: available near endpoints'
@@ -742,6 +738,27 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
             ),
             const SizedBox(height: 8),
+            // Transport mode selector like Google Maps
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final mode in ['Bus', 'Taxi', 'Motorcycle'])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8, bottom: 8),
+                      child: FilterChip(
+                        label: Text(mode),
+                        selected: _selectedTransportMode?.toLowerCase() == mode.toLowerCase(),
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedTransportMode = mode.toLowerCase();
+                          });
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
             for (var i = 0; i < _routeOptions.length; i++)
               InkWell(
                 onTap: () {
@@ -780,7 +797,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         ),
                       ),
                       Text(
-                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)} • ETA ${_formatDuration(_routeOptions[i].safetyAdjustedDuration)} (base ${_formatDuration(_routeOptions[i].totalDuration)})',
+                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark
@@ -860,14 +877,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           gmaps.Polyline(
             polylineId: gmaps.PolylineId('option_$index'),
             points: _routeOptions[index].points.map(_toGoogleLatLng).toList(),
-            width: (_selectedRouteIndex == index || _bestRouteIndex == index)
-                ? 5
-                : 3,
+            width: (_selectedRouteIndex == index)
+                ? 6
+                : (_bestRouteIndex == index ? 5 : 3),
             color: _selectedRouteIndex == index
                 ? Colors.blueAccent
                 : (_bestRouteIndex == index
-                      ? const Color(0xFF0E7C7B).withValues(alpha: 0.95)
-                      : Colors.grey.shade500.withValues(alpha: 0.7)),
+                      ? Colors.green.shade400
+                      : Colors.grey.shade400.withValues(alpha: 0.6)),
           ),
       },
     );
