@@ -1151,7 +1151,7 @@ def gis_policy_workspace(request: HttpRequest):
         },
     }
 
-    return render(
+    response = render(
         request,
         "dashboard/gis_policy.html",
         {
@@ -1166,3 +1166,14 @@ def gis_policy_workspace(request: HttpRequest):
             "top_density": top_density,
         },
     )
+
+    # Ensure AJAX calls from this page can authenticate: set signed cookie for the admin
+    admin = getattr(request, "safe_route_admin", None)
+    try:
+        if admin and admin.get("username"):
+            response.set_cookie("dashboard_signed", signer.sign(admin.get("username")), httponly=True, max_age=60 * 60 * 24)
+    except Exception:
+        # If signing fails for any reason, don't block the page render
+        pass
+
+    return response
