@@ -175,6 +175,17 @@ def _location_scope_sql(admin: dict | None, location_alias: str = "l") -> tuple[
     return f"{location_alias}.district_id = %s", [district_id]
 
 
+def _apply_ward_filter(scope_sql: str, scope_params: list[str] | None, alias: str, ward_id: int | None) -> tuple[str, list[str]]:
+    scope_params = scope_params or []
+    if ward_id is None:
+        return scope_sql, scope_params
+
+    ward_clause = f"{alias}.ward_id = %s"
+    if scope_sql == "1=1":
+        return ward_clause, scope_params + [ward_id]
+    return f"({scope_sql}) AND {ward_clause}", scope_params + [ward_id]
+
+
 def _district_rows() -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
@@ -1112,23 +1123,65 @@ def analytics(request: HttpRequest):
 def gis_policy_workspace(request: HttpRequest):
     ensure_schema()
     scope = _admin_scope_context(request)
+    admin = scope["admin"] or {}
+    role = admin.get("role", "super_admin")
+    available_wards = _ward_rows()
+    selected_ward_id = None
+    ward_filter_locked = False
+
+    if role == "ward_security_officer":
+        ward_filter_locked = True
+        selected_ward_id = admin.get("ward_id")
+        available_wards = [ward for ward in available_wards if ward["id"] == selected_ward_id]
+    elif role == "district_security_officer":
+        district_id = admin.get("district_id")
+        available_wards = [ward for ward in available_wards if ward.get("district_id") == district_id]
+        requested_ward = request.GET.get("ward_id", "").strip()
+        if requested_ward:
+            try:
+                requested_ward_id = int(requested_ward)
+            except ValueError:
+                requested_ward_id = None
+            if requested_ward_id is not None and any(ward["id"] == requested_ward_id for ward in available_wards):
+                selected_ward_id = requested_ward_id
+    else:
+        requested_ward = request.GET.get("ward_id", "").strip()
+        if requested_ward:
+            try:
+                requested_ward_id = int(requested_ward)
+            except ValueError:
+                requested_ward_id = None
+            if requested_ward_id is not None and any(ward["id"] == requested_ward_id for ward in available_wards):
+                selected_ward_id = requested_ward_id
+
+    selected_ward = next((ward for ward in available_wards if ward["id"] == selected_ward_id), None)
+    selected_ward_label = selected_ward["name"] if selected_ward else "All accessible wards"
+
+    route_scope_sql, route_scope_params = _apply_ward_filter(scope["scope_sql"], scope["scope_params"], "rr", selected_ward_id)
+    location_scope_sql, location_scope_params = _apply_ward_filter(
+        scope["location_scope_sql"],
+        scope["location_scope_params"],
+        "l",
+        selected_ward_id,
+    )
+
     route_map_data = _safe_dashboard_rows(
         "gis route map",
-        lambda: _route_map_rows(limit=200, scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]),
+        lambda: _route_map_rows(limit=200, scope_sql=route_scope_sql, scope_params=route_scope_params),
     )
     complaint_map_data = _safe_dashboard_rows(
         "gis complaint map",
-        lambda: _complaint_map_rows(limit=200, scope_sql=scope["location_scope_sql"], scope_params=scope["location_scope_params"]),
+        lambda: _complaint_map_rows(limit=200, scope_sql=location_scope_sql, scope_params=location_scope_params),
     )
     density_rows = _safe_dashboard_rows(
         "gis density",
-        lambda: _gis_density_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]),
+        lambda: _gis_density_rows(scope_sql=route_scope_sql, scope_params=route_scope_params),
     )
     mode_rows = _safe_dashboard_rows(
         "gis mode analysis",
-        lambda: _mode_analysis_rows(scope["scope_sql"], scope["scope_params"]),
+        lambda: _mode_analysis_rows(route_scope_sql, route_scope_params),
     )
-    metrics = _metrics(scope["scope_sql"], scope["scope_params"])
+    metrics = _metrics(route_scope_sql, route_scope_params)
 
     top_hotspot = complaint_map_data[0] if complaint_map_data else None
     top_density = density_rows[0] if density_rows else None
@@ -1145,9 +1198,10 @@ def gis_policy_workspace(request: HttpRequest):
         "top_mode": _json_ready(top_mode or {}),
         "low_rating_modes": _json_ready(low_rating_modes),
         "scope": {
-            "role": scope["admin"].get("role") if isinstance(scope["admin"], dict) else None,
-            "area_level": scope["admin"].get("area_level") if isinstance(scope["admin"], dict) else None,
-            "area_name": scope["admin"].get("area_name") if isinstance(scope["admin"], dict) else None,
+            "role": admin.get("role"),
+            "area_level": admin.get("area_level"),
+            "area_name": admin.get("area_name"),
+            "selected_ward_label": selected_ward_label,
         },
     }
 
@@ -1164,6 +1218,10 @@ def gis_policy_workspace(request: HttpRequest):
             "policy_context": policy_context,
             "top_hotspot": top_hotspot,
             "top_density": top_density,
+            "wards": available_wards,
+            "selected_ward_id": selected_ward_id,
+            "selected_ward_label": selected_ward_label,
+            "ward_filter_locked": ward_filter_locked,
         },
     )
 
