@@ -2,6 +2,94 @@
 {% block title %}GIS & Policy - SafeRoute Admin{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+  .workspace-hero {
+    background:
+      radial-gradient(circle at top right, rgba(51, 92, 153, 0.08), transparent 28%),
+      linear-gradient(135deg, #ffffff 0%, #f5f9f6 100%);
+  }
+  .workspace-hero .section-title { margin-bottom: 10px; }
+  .workspace-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .scope-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .scope-chip strong { color: var(--accent); }
+  .scope-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    margin-top: 16px;
+  }
+  .scope-panel label { min-width: 0; }
+  .scope-note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .card-accent {
+    border-top: 4px solid rgba(15, 122, 90, 0.18);
+  }
+  .export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .export-actions button,
+  .export-actions .button {
+    min-width: 170px;
+  }
+  .generated-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .generated-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .generated-metric {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #edf5f1;
+    color: #0f6048;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .generated-metric strong { color: var(--ink); }
+  .report-output {
+    background: linear-gradient(180deg, #fbfdfc 0%, #f7faf8 100%);
+    min-height: 260px;
+  }
+  @media (max-width: 900px) {
+    .scope-panel { grid-template-columns: 1fr; }
+    .generated-header { align-items: flex-start; flex-direction: column; }
+    .export-actions button,
+    .export-actions .button { width: 100%; }
+  }
+</style>
 {% endblock %}
 {% block content %}
 <div class="topbar">
@@ -11,6 +99,38 @@
   </div>
   <a class="button" href="{% url 'analytics' %}">Analytics</a>
 </div>
+
+<section class="card workspace-hero card-accent">
+  <div class="section-title">
+    <div>
+      <h2>Export scope</h2>
+      <div class="subtle">Choose a ward to focus the map, report, and policy brief before exporting.</div>
+    </div>
+    <div class="scope-chip">Current scope: <strong>{{ selected_ward_label }}</strong></div>
+  </div>
+  {% if ward_filter_locked %}
+  <div class="scope-note">Ward filtering is locked to your assigned ward. The export buttons will use that scope automatically.</div>
+  {% else %}
+  <form class="scope-panel" method="get">
+    <label>Ward filter
+      <select name="ward_id">
+        <option value="">All accessible wards</option>
+        {% for ward in wards %}
+        <option value="{{ ward.id }}" {% if selected_ward_id == ward.id %}selected{% endif %}>{{ ward.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="primary" type="submit">Apply filter</button>
+  </form>
+  <div class="scope-note">Leave the filter empty to review all wards you can access.</div>
+  {% endif %}
+  <div class="generated-meta">
+    <span class="generated-metric">Routes <strong>{{ metrics.recorded_routes }}</strong></span>
+    <span class="generated-metric">Reports <strong>{{ metrics.safety_reports }}</strong></span>
+    <span class="generated-metric">Incidents <strong>{{ metrics.incidents }}</strong></span>
+    <span class="generated-metric">Distance <strong>{{ metrics.distance_km }} km</strong></span>
+  </div>
+</section>
 
 <div class="grid metrics">
   <div class="card metric"><span>Recorded routes</span><strong>{{ metrics.recorded_routes }}</strong></div>
@@ -48,15 +168,19 @@
     <p>Summarise route concentration, unsafe locations, transport mix, and weak safety ratings.</p>
     <button type="button" id="run-analysis">Run analysis</button>
   </section>
-  <section class="card tool-card">
-    <h3>Generate report</h3>
-    <p>Create a dashboard-ready operational report from aggregated routes, distance, reports, and hot spots.</p>
-    <button type="button" id="generate-report">Generate report</button>
+  <section class="card tool-card card-accent">
+    <h3>Operational report PDF</h3>
+    <p>Generate a formatted operational report for the currently selected ward scope.</p>
+    <div class="export-actions">
+      <button class="primary" type="button" id="generate-report">Download report PDF</button>
+    </div>
   </section>
-  <section class="card tool-card">
-    <h3>Policy brief generator</h3>
+  <section class="card tool-card card-accent">
+    <h3>Policy brief PDF</h3>
     <p>Draft a concise policy brief with evidence, priorities, and recommended interventions.</p>
-    <button type="button" id="generate-policy">Generate policy brief</button>
+    <div class="export-actions">
+      <button class="primary" type="button" id="generate-policy">Download policy PDF</button>
+    </div>
   </section>
 </div>
 
@@ -92,11 +216,14 @@
 </div>
 
 <section class="card" style="margin-top:16px;">
-  <div class="section-title">
-    <h2>Generated output</h2>
+  <div class="generated-header">
+    <div>
+      <h2 style="margin:0; font-size:18px;">Generated output</h2>
+      <div class="subtle">Use this preview to review the current ward-scoped analysis before exporting.</div>
+    </div>
     <div class="filters">
       <button type="button" id="copy-output">Copy</button>
-      <button type="button" id="download-output">Download .txt</button>
+      <button type="button" id="download-output">Download preview PDF</button>
     </div>
   </div>
   <div id="generated-output" class="report-output">Choose an action above to generate GIS analysis, an operational report, or a policy brief.</div>
@@ -116,6 +243,19 @@
   const density = JSON.parse(document.getElementById('gis-density-data').textContent || '[]');
   const policy = JSON.parse(document.getElementById('gis-policy-context').textContent || '{}');
   const output = document.getElementById('generated-output');
+  const selectedScope = policy.scope || {};
+  const selectedWardLabel = selectedScope.selected_ward_label || '{{ selected_ward_label|escapejs }}';
+  const jsPdfCtor = window.jspdf && window.jspdf.jsPDF;
+  const pageMargin = 42;
+  const theme = {
+    accent: [15, 122, 90],
+    accentSoft: [15, 122, 90, 20],
+    navy: [51, 92, 153],
+    text: [23, 33, 28],
+    muted: [99, 112, 104],
+    line: [223, 231, 225],
+    panel: [245, 248, 246],
+  };
 
   const map = L.map('gis-map', { scrollWheelZoom: false });
   const routeLayer = L.featureGroup();
@@ -194,6 +334,310 @@
         console.warn('No ward geometry or fetch failed', err);
       });
   })();
+
+    function safeValue(value, fallback) {
+      return value === undefined || value === null || value === '' ? fallback : value;
+    }
+
+    function slugify(value) {
+      return String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'all-wards';
+    }
+
+    function formatFileDate(date) {
+      return date.toISOString().slice(0, 10);
+    }
+
+    function currentScopeLabel() {
+      return selectedWardLabel || 'All accessible wards';
+    }
+
+    function buildAnalysisSummary() {
+      const metrics = policy.metrics || {};
+      const topMode = policy.top_mode || {};
+      const topHotspot = policy.top_hotspot || {};
+      const topDensity = policy.top_density || {};
+      const weakModes = policy.low_rating_modes || [];
+
+      return {
+        recordedRoutes: safeValue(metrics.recorded_routes, 0),
+        safetyReports: safeValue(metrics.safety_reports, 0),
+        incidents: safeValue(metrics.incidents, 0),
+        distanceKm: safeValue(metrics.distance_km, 0),
+        topMode: safeValue(topMode.transport_mode, 'Not available'),
+        topModeRoutes: safeValue(topMode.route_count, 0),
+        topHotspot: safeValue(topHotspot.location_name, 'No mapped hot spot'),
+        hotspotCount: safeValue(topHotspot.complaint_count, 0),
+        topDensity: `${safeValue(topDensity.route_count, 0)} routes near ${safeValue(topDensity.latitude, '-')} / ${safeValue(topDensity.longitude, '-')}`,
+        weakModes,
+      };
+    }
+
+    function analysisText() {
+      const summary = buildAnalysisSummary();
+      return [
+        'GIS DATA ANALYSIS',
+        '',
+        `Ward scope: ${currentScopeLabel()}`,
+        `Route base: ${summary.recordedRoutes} recorded routes covering ${summary.distanceKm} km.`,
+        `Dominant mode: ${summary.topMode} with ${summary.topModeRoutes} routes.`,
+        `Highest density cell: ${summary.topDensity}.`,
+        `Highest complaint hot spot: ${summary.topHotspot} with ${summary.hotspotCount} complaints.`,
+        summary.weakModes.length
+          ? `Low-rating modes needing review: ${summary.weakModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
+          : 'No low-rating transport mode cluster was detected from available ratings.',
+      ].join('\n');
+    }
+
+    function reportText() {
+      const today = new Date().toLocaleDateString();
+      return [
+        `SAFEROUTE GIS OPERATIONS REPORT - ${today}`,
+        '',
+        `Ward scope: ${currentScopeLabel()}`,
+        '',
+        analysisText(),
+        '',
+        'Recommended operational actions:',
+        '1. Prioritise field validation in the highest complaint hot spot and highest route-density cell.',
+        '2. Compare route safety ratings by transport mode before adjusting recommended route weighting.',
+        '3. Use the GIS layer toggles to isolate route coverage gaps and complaint concentration.',
+        '4. Share this report with transport planners, ward officers, and community safety teams.',
+      ].join('\n');
+    }
+
+    function policyText() {
+      const metrics = policy.metrics || {};
+      const topHotspot = policy.top_hotspot || {};
+      const topDensity = policy.top_density || {};
+      const topMode = policy.top_mode || {};
+      return [
+        'AUTOMATED POLICY BRIEF',
+        '',
+        `Ward scope: ${currentScopeLabel()}`,
+        '',
+        'Policy question:',
+        'How should SafeRoute evidence guide safer and more reliable urban mobility interventions?',
+        '',
+        'Evidence base:',
+        `The dashboard aggregates ${safeValue(metrics.recorded_routes, 0)} recorded routes, ${safeValue(metrics.safety_reports, 0)} safety reports, and ${safeValue(metrics.incidents, 0)} linked incident records.`,
+        `The most active transport mode is ${safeValue(topMode.transport_mode, 'not yet established')}. The strongest GIS density signal is near ${safeValue(topDensity.latitude, '-')} / ${safeValue(topDensity.longitude, '-')}.`,
+        `The leading complaint location is ${safeValue(topHotspot.location_name, 'not yet available')}.`,
+        '',
+        'Policy priorities:',
+        '1. Target lighting, road-condition, and security interventions around mapped complaint hot spots.',
+        '2. Protect high-density commuter corridors with safer pickup and drop-off points plus better route monitoring.',
+        '3. Require periodic review of transport modes with weak ratings or repeated incident notes.',
+        '4. Use route diary data as a standing evidence base for ward and district transport planning.',
+        '',
+        'Implementation note:',
+        'Treat this brief as an automated first draft. Validate hot spots with local officials and community reports before resource allocation.',
+      ].join('\n');
+    }
+
+    function getPdfDocument(title, subtitle) {
+      const doc = new jsPdfCtor({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFillColor(...theme.accent);
+      doc.rect(0, 0, pageWidth, 96, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text(title, pageMargin, 38);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10.5);
+      doc.text(subtitle, pageMargin, 60, { maxWidth: pageWidth - (pageMargin * 2) });
+      doc.setFontSize(9.5);
+      doc.text(`Ward scope: ${currentScopeLabel()}`, pageMargin, 80, { maxWidth: pageWidth - (pageMargin * 2) });
+      return doc;
+    }
+
+    function addMetricGrid(doc, items, startY) {
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const cardGap = 10;
+      const cardWidth = (pageWidth - (pageMargin * 2) - (cardGap * (items.length - 1))) / items.length;
+      const cardHeight = 58;
+
+      items.forEach((item, index) => {
+        const x = pageMargin + (index * (cardWidth + cardGap));
+        doc.setFillColor(...theme.panel);
+        doc.setDrawColor(...theme.line);
+        doc.roundedRect(x, startY, cardWidth, cardHeight, 8, 8, 'FD');
+        doc.setTextColor(...theme.muted);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.text(item.label, x + 10, startY + 18);
+        doc.setTextColor(...theme.text);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.text(String(item.value), x + 10, startY + 40);
+      });
+
+      return startY + cardHeight + 20;
+    }
+
+    function ensurePdfSpace(doc, cursorY, required) {
+      const pageHeight = doc.internal.pageSize.getHeight();
+      if (cursorY + required > pageHeight - 42) {
+        doc.addPage();
+        return 54;
+      }
+      return cursorY;
+    }
+
+    function addPdfSection(doc, title, bullets, cursorY) {
+      const pageWidth = doc.internal.pageSize.getWidth();
+      cursorY = ensurePdfSpace(doc, cursorY, 72);
+      doc.setTextColor(...theme.accent);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text(title, pageMargin, cursorY);
+      cursorY += 10;
+      doc.setDrawColor(...theme.line);
+      doc.line(pageMargin, cursorY, pageWidth - pageMargin, cursorY);
+      cursorY += 14;
+
+      bullets.forEach((bullet) => {
+        const wrapped = doc.splitTextToSize(`- ${bullet}`, pageWidth - (pageMargin * 2));
+        cursorY = ensurePdfSpace(doc, cursorY, (wrapped.length * 14) + 18);
+        doc.setTextColor(...theme.text);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10.5);
+        doc.text(wrapped, pageMargin, cursorY);
+        cursorY += (wrapped.length * 14) + 6;
+      });
+
+      return cursorY + 4;
+    }
+
+    function finalizePdf(doc) {
+      const totalPages = doc.getNumberOfPages();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      for (let page = 1; page <= totalPages; page += 1) {
+        doc.setPage(page);
+        doc.setDrawColor(...theme.line);
+        doc.line(pageMargin, pageHeight - 36, pageWidth - pageMargin, pageHeight - 36);
+        doc.setTextColor(...theme.muted);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.text(`Page ${page} of ${totalPages}`, pageWidth - pageMargin, pageHeight - 18, { align: 'right' });
+      }
+    }
+
+    function buildReportPdf() {
+      const summary = buildAnalysisSummary();
+      const doc = getPdfDocument(
+        'SafeRoute Operational Report',
+        'Ward-scoped operational summary for planners, ward officers, and community safety teams.',
+      );
+      let cursorY = 124;
+      cursorY = addMetricGrid(doc, [
+        { label: 'Recorded routes', value: summary.recordedRoutes },
+        { label: 'Safety reports', value: summary.safetyReports },
+        { label: 'Incidents', value: summary.incidents },
+        { label: 'Distance', value: `${summary.distanceKm} km` },
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Key findings', [
+        `Dominant transport mode: ${summary.topMode} with ${summary.topModeRoutes} routes.`,
+        `Highest complaint hot spot: ${summary.topHotspot} with ${summary.hotspotCount} complaints.`,
+        `Highest route-density cell: ${summary.topDensity}.`,
+        summary.weakModes.length
+          ? `Low-rating modes needing review: ${summary.weakModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
+          : 'No low-rating transport mode cluster was detected from available ratings.',
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Recommended actions', [
+        'Prioritise field validation in the highest complaint hot spot and highest route-density cell.',
+        'Compare route safety ratings by transport mode before adjusting recommended route weighting.',
+        'Use the GIS layer toggles to isolate route coverage gaps and complaint concentration.',
+        'Share this report with transport planners, ward officers, and community safety teams.',
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Scope note', [
+        `This report is filtered to ${currentScopeLabel()}.`,
+        'Use the ward filter above to regenerate the report for a different boundary.',
+      ], cursorY);
+      finalizePdf(doc);
+      return doc;
+    }
+
+    function buildPolicyPdf() {
+      const metrics = policy.metrics || {};
+      const topHotspot = policy.top_hotspot || {};
+      const topDensity = policy.top_density || {};
+      const topMode = policy.top_mode || {};
+      const lowRatingModes = policy.low_rating_modes || [];
+      const doc = getPdfDocument(
+        'SafeRoute Policy Brief',
+        'Evidence-led summary for transport planners, district officers, and community safety teams.',
+      );
+      let cursorY = 124;
+      cursorY = addMetricGrid(doc, [
+        { label: 'Recorded routes', value: safeValue(metrics.recorded_routes, 0) },
+        { label: 'Safety reports', value: safeValue(metrics.safety_reports, 0) },
+        { label: 'Incidents', value: safeValue(metrics.incidents, 0) },
+        { label: 'Distance', value: `${safeValue(metrics.distance_km, 0)} km` },
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Evidence base', [
+        `The dashboard aggregates ${safeValue(metrics.recorded_routes, 0)} recorded routes, ${safeValue(metrics.safety_reports, 0)} safety reports, and ${safeValue(metrics.incidents, 0)} linked incident records.`,
+        `The most active transport mode is ${safeValue(topMode.transport_mode, 'not yet established')}. The strongest GIS density signal is near ${safeValue(topDensity.latitude, '-')} / ${safeValue(topDensity.longitude, '-')}.`,
+        `The leading complaint location is ${safeValue(topHotspot.location_name, 'not yet available')}.`,
+        lowRatingModes.length
+          ? `Low-rating transport modes needing review: ${lowRatingModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
+          : 'No low-rating transport mode cluster was detected from available ratings.',
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Policy priorities', [
+        'Target lighting, road-condition, and security interventions around mapped complaint hot spots.',
+        'Protect high-density commuter corridors with safer pickup and drop-off points plus better route monitoring.',
+        'Require periodic review of transport modes with weak ratings or repeated incident notes.',
+        'Use route diary data as a standing evidence base for ward and district transport planning.',
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Implementation note', [
+        'Treat this brief as an automated first draft.',
+        'Validate hot spots with local officials and community reports before resource allocation.',
+        `This brief is currently scoped to ${currentScopeLabel()}.`,
+      ], cursorY);
+      finalizePdf(doc);
+      return doc;
+    }
+
+    function buildPreviewPdf(text, title, fileName) {
+      const doc = getPdfDocument(title, 'Generated preview for the current ward scope.');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let cursorY = 126;
+      const lines = doc.splitTextToSize(text || '', pageWidth - (pageMargin * 2));
+      lines.forEach((line) => {
+        cursorY = ensurePdfSpace(doc, cursorY, 18);
+        doc.setTextColor(...theme.text);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10.5);
+        doc.text(line, pageMargin, cursorY);
+        cursorY += 14;
+      });
+      finalizePdf(doc);
+      doc.save(fileName);
+    }
+
+    function exportPdf(kind) {
+      if (!jsPdfCtor) {
+        alert('PDF export is not available right now. Refresh the page and try again.');
+        return;
+      }
+      const stamp = formatFileDate(new Date());
+      if (kind === 'report') {
+        buildReportPdf().save(`saferoute-operational-report-${slugify(currentScopeLabel())}-${stamp}.pdf`);
+        output.textContent = reportText();
+        return;
+      }
+      if (kind === 'policy') {
+        buildPolicyPdf().save(`saferoute-policy-brief-${slugify(currentScopeLabel())}-${stamp}.pdf`);
+        output.textContent = policyText();
+        return;
+      }
+      buildPreviewPdf(output.textContent || '', `SafeRoute preview - ${currentScopeLabel()}`, `saferoute-preview-${slugify(currentScopeLabel())}-${stamp}.pdf`);
+    }
 
   function routePoints(route) {
     let coordinates = route.coordinates || [];
@@ -278,34 +722,20 @@
     return value === undefined || value === null || value === '' ? fallback : value;
   }
 
-  function analysisText() {
-    const metrics = policy.metrics || {};
-    const topMode = policy.top_mode || {};
-    const topHotspot = policy.top_hotspot || {};
-    const topDensity = policy.top_density || {};
-    const weakModes = policy.low_rating_modes || [];
-    // Ensure all handlers still work even when clipboard is blocked.
-    // (Some browsers require HTTPS + user gesture.)
-    return [
-      'GIS DATA ANALYSIS',
-      '',
-      `Route base: ${summaryValue(metrics.recorded_routes, 0)} recorded routes covering ${summaryValue(metrics.distance_km, 0)} km.`,
-      `Dominant mode: ${summaryValue(topMode.transport_mode, 'Not available')} with ${summaryValue(topMode.route_count, 0)} routes.`,
-      `Highest density cell: ${summaryValue(topDensity.route_count, 0)} routes near ${summaryValue(topDensity.latitude, '-')} / ${summaryValue(topDensity.longitude, '-')}.`,
-      `Highest complaint hot spot: ${summaryValue(topHotspot.location_name, 'No mapped hot spot')} with ${summaryValue(topHotspot.complaint_count, 0)} complaints.`,
-      weakModes.length
-        ? `Low-rating modes needing review: ${weakModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
-        : 'No low-rating transport mode cluster was detected from available ratings.',
-    ].join('\n');
-  }
-
   function reportText() {
     const today = new Date().toLocaleDateString();
     const metrics = policy.metrics || {};
     return [
       `SAFEROUTE GIS OPERATIONS REPORT - ${today}`,
+      `Ward scope: ${currentScopeLabel()}`,
       '',
-      analysisText(),
+      `Route base: ${safeValue(metrics.recorded_routes, 0)} recorded routes covering ${safeValue(metrics.distance_km, 0)} km.`,
+      `Dominant mode: ${safeValue((policy.top_mode || {}).transport_mode, 'Not available')} with ${safeValue((policy.top_mode || {}).route_count, 0)} routes.`,
+      `Highest density cell: ${safeValue((policy.top_density || {}).route_count, 0)} routes near ${safeValue((policy.top_density || {}).latitude, '-')} / ${safeValue((policy.top_density || {}).longitude, '-')}.`,
+      `Highest complaint hot spot: ${safeValue((policy.top_hotspot || {}).location_name, 'No mapped hot spot')} with ${safeValue((policy.top_hotspot || {}).complaint_count, 0)} complaints.`,
+      (policy.low_rating_modes || []).length
+        ? `Low-rating modes needing review: ${(policy.low_rating_modes || []).map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
+        : 'No low-rating transport mode cluster was detected from available ratings.',
       '',
       'Recommended operational actions:',
       '1. Prioritise field validation in the highest complaint hot spot and highest route-density cell.',
@@ -322,6 +752,7 @@
     const topMode = policy.top_mode || {};
     return [
       'AUTOMATED POLICY BRIEF',
+      `Ward scope: ${currentScopeLabel()}`,
       '',
       'Policy question:',
       'How should SafeRoute evidence guide safer and more reliable urban mobility interventions?',
@@ -347,18 +778,13 @@
     document.getElementById(id).addEventListener('change', updateLayers);
   });
   document.getElementById('run-analysis').addEventListener('click', () => { output.textContent = analysisText(); });
-  document.getElementById('generate-report').addEventListener('click', () => { output.textContent = reportText(); });
-  document.getElementById('generate-policy').addEventListener('click', () => { output.textContent = policyText(); });
+  document.getElementById('generate-report').addEventListener('click', () => { output.textContent = reportText(); exportPdf('report'); });
+  document.getElementById('generate-policy').addEventListener('click', () => { output.textContent = policyText(); exportPdf('policy'); });
   document.getElementById('copy-output').addEventListener('click', async () => {
     await navigator.clipboard.writeText(output.textContent || '');
   });
   document.getElementById('download-output').addEventListener('click', () => {
-    const blob = new Blob([output.textContent || ''], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'saferoute-gis-policy-output.txt';
-    link.click();
-    URL.revokeObjectURL(link.href);
+    exportPdf('preview');
   });
 
   drawMap();
