@@ -210,8 +210,13 @@ class BackendService {
     required RecordedRoute route,
     int? districtId,
     int? wardId,
+    List<Map<String, double>>? coordinateOverride,
   }) async {
     try {
+      final coordinates = coordinateOverride ??
+          route.coordinates
+              .map((c) => {'lat': c.latitude, 'lng': c.longitude})
+              .toList();
       final response = await _postWithFallback('/routes/record', {
         'userId': userId,
         'startLocationName': route.startLocationName,
@@ -223,9 +228,7 @@ class BackendService {
         'endLongitude': route.endPoint.longitude,
         'districtId': districtId,
         'wardId': wardId,
-        'coordinates': route.coordinates
-            .map((c) => {'lat': c.latitude, 'lng': c.longitude})
-            .toList(),
+        'coordinates': coordinates,
         'distance': route.distance,
         'duration': route.duration.inSeconds,
         'rating': route.rating,
