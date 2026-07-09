@@ -9,11 +9,9 @@ import 'route_recorder_screen.dart';
 
 const _transportModes = <String>[
   'Walking',
-  'Bicycle',
-  'Motorcycle',
-  'Car',
   'Bus',
   'Taxi',
+  'Motorcycle',
   'Tricycle',
 ];
 
@@ -29,44 +27,16 @@ class _RouteOption {
     required this.label,
     required this.transportHint,
     required this.segments,
-    required this.hasBusStopsNearEndpoints,
-    required this.safetyScore,
-    required this.transportPovertyScore,
   });
 
   final String label;
   final String transportHint;
   final List<PathSegment> segments;
-  final bool hasBusStopsNearEndpoints;
-  final double safetyScore;
-  final double transportPovertyScore;
 
   double get totalDistance =>
       segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
   int get totalDuration =>
       segments.fold<int>(0, (sum, segment) => sum + segment.duration);
-  String get transportPovertyBand {
-    if (transportPovertyScore >= 75) return 'High';
-    if (transportPovertyScore >= 45) return 'Moderate';
-    return 'Low';
-  }
-  int get safetyAdjustedDuration {
-    final boundedSafety = safetyScore.clamp(0.0, 100.0);
-    final riskRatio = (100.0 - boundedSafety) / 100.0;
-    final modeWeight = switch (transportHint) {
-      'walking' => 1.15,
-      'bicycle' => 1.10,
-      'motorcycle' => 1.05,
-      'tricycle' => 1.08,
-      'bus' => 0.95,
-      'car' => 1.00,
-      'taxi' => 1.00,
-      _ => 1.00,
-    };
-
-    final multiplier = 1.0 + (0.45 * modeWeight * riskRatio);
-    return (totalDuration * multiplier).round();
-  }
 
   List<ll.LatLng> get points {
     final all = <ll.LatLng>[];
@@ -121,81 +91,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     final hrs = mins ~/ 60;
     final remMins = mins % 60;
     return hrs == 0 ? '$mins min' : '${hrs}h ${remMins}m';
-  }
-
-  double _scoreRoute({
-    required List<PathSegment> segments,
-    required bool hasBusStops,
-    required String hint,
-  }) {
-    final totalDistance = segments.fold<double>(
-      0.0,
-      (sum, segment) => sum + segment.distance,
-    );
-    final totalDuration = segments.fold<int>(
-      0,
-      (sum, segment) => sum + segment.duration,
-    );
-
-    var score = 100.0;
-    score -= totalDuration / 90.0;
-    score -= totalDistance / 2500.0;
-
-    if (hint == 'walking') {
-      score += totalDistance <= 1800 ? 12 : -18;
-      score += totalDuration <= 1200 ? 4 : -10;
-    } else if (hint == 'bicycle') {
-      score += totalDistance <= 8000 ? 10 : -14;
-    } else if (hint == 'bus') {
-      score += hasBusStops ? 18 : -40;
-      score += segments.length <= 3 ? 6 : -4;
-    } else if (hint == 'car' || hint == 'taxi') {
-      score += 8;
-    } else if (hint == 'motorcycle' || hint == 'tricycle') {
-      score += 4;
-    }
-
-    return score.clamp(0, 100).toDouble();
-  }
-
-  double _transportPovertyScore({
-    required List<PathSegment> segments,
-    required bool hasBusStops,
-    required String hint,
-    required double safetyScore,
-  }) {
-    final totalDistance = segments.fold<double>(
-      0.0,
-      (sum, segment) => sum + segment.distance,
-    );
-    final totalDuration = segments.fold<int>(
-      0,
-      (sum, segment) => sum + segment.duration,
-    );
-
-    var score = 100.0 - safetyScore;
-    score += (totalDistance / 2500.0) * 4.0;
-    score += (totalDuration / 900.0) * 5.0;
-    if (!hasBusStops) score += 12.0;
-
-    score += switch (hint) {
-      'walking' => 18.0,
-      'bicycle' => 10.0,
-      'tricycle' => 7.0,
-      'motorcycle' => 4.0,
-      'bus' => -12.0,
-      'taxi' => -4.0,
-      'car' => -2.0,
-      _ => 5.0,
-    };
-
-    return score.clamp(0.0, 100.0).toDouble();
-  }
-
-  Color _transportPovertyColor(double score) {
-    if (score >= 75) return Colors.red.shade700;
-    if (score >= 45) return Colors.orange.shade600;
-    return Colors.green.shade600;
   }
 
   PathSegment _fallbackSegment(
@@ -399,248 +294,145 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       _selectedRouteIndex = null;
     });
 
-    final busNearStart = await RoutePathPlannerService.hasNearbyBusStop(start);
-    final busNearDestination = await RoutePathPlannerService.hasNearbyBusStop(
-      destination,
-    );
-    final hasBusStops = busNearStart || busNearDestination;
-
     final candidateModes = <String>[];
     final selectedMode = _selectedTransportMode?.toLowerCase();
     if (selectedMode != null && selectedMode.isNotEmpty) {
       candidateModes.add(selectedMode);
     }
-    candidateModes.addAll(<String>['car', 'motorcycle', 'walking']);
-    if (hasBusStops) candidateModes.add('bus');
+    candidateModes.addAll(
+      _transportModes.map((mode) => mode.toLowerCase()).toList(),
+    );
 
     final uniqueModes = <String>[];
     for (final mode in candidateModes) {
       if (!uniqueModes.contains(mode)) uniqueModes.add(mode);
     }
 
-    final labels = <String, String>{
-      'car': 'Taxi',
-      'Motorcycle': 'Fastest road',
-      'walking': 'Eco walk',
-      'bus': 'Bus friendly',
-    };
-    if (selectedMode != null) {
-      labels[selectedMode] = 'Selected transport';
-    }
-
     final results = await Future.wait(
       uniqueModes.map(
-        (mode) =>
-            RoutePathPlannerService.calculatePath(start, destination, mode),
+        (mode) => RoutePathPlannerService.calculatePathAlternatives(
+          start,
+          destination,
+          mode,
+        ),
       ),
     );
 
     final options = <_RouteOption>[];
     for (var i = 0; i < uniqueModes.length; i++) {
       final mode = uniqueModes[i];
-      final segments =
-          results[i] ?? [_fallbackSegment(start, destination, mode)];
-      options.add(
-        _RouteOption(
-          label: labels[mode] ?? 'Alternative ${i + 1}',
-          transportHint: mode,
-          segments: segments,
-          hasBusStopsNearEndpoints: hasBusStops,
-          safetyScore: _scoreRoute(
-            segments: segments,
-            hasBusStops: hasBusStops,
-            hint: mode,
+      final routeAlternatives = results[i].isEmpty
+          ? <List<PathSegment>>[
+              [_fallbackSegment(start, destination, mode)],
+            ]
+          : results[i];
+
+      for (var alternativeIndex = 0;
+          alternativeIndex < routeAlternatives.length;
+          alternativeIndex++) {
+        options.add(
+          _RouteOption(
+            label: _routeLabel(mode, alternativeIndex),
+            transportHint: mode,
+            segments: routeAlternatives[alternativeIndex],
           ),
-          transportPovertyScore: _transportPovertyScore(
-            segments: segments,
-            hasBusStops: hasBusStops,
-            hint: mode,
-            safetyScore: _scoreRoute(
-              segments: segments,
-              hasBusStops: hasBusStops,
-              hint: mode,
-            ),
-          ),
-        ),
-      );
+        );
+      }
     }
 
-    while (options.length < 3) {
-      final mode = ['car', 'motorcycle', 'walking'][options.length % 3];
-      final segments = [_fallbackSegment(start, destination, mode)];
-      options.add(
-        _RouteOption(
-          label: 'Alternative ${options.length + 1}',
-          transportHint: mode,
-          segments: segments,
-          hasBusStopsNearEndpoints: hasBusStops,
-          safetyScore: _scoreRoute(
-            segments: segments,
-            hasBusStops: hasBusStops,
-            hint: mode,
-          ),
-          transportPovertyScore: _transportPovertyScore(
-            segments: segments,
-            hasBusStops: hasBusStops,
-            hint: mode,
-            safetyScore: _scoreRoute(
-              segments: segments,
-              hasBusStops: hasBusStops,
-              hint: mode,
-            ),
-          ),
-        ),
-      );
-    }
+    options.sort((a, b) {
+      final modeCompare = _transportModeOrder(
+        a.transportHint,
+      ).compareTo(_transportModeOrder(b.transportHint));
+      if (modeCompare != 0) return modeCompare;
+      return a.totalDuration.compareTo(b.totalDuration);
+    });
 
-    options.sort((a, b) => b.safetyScore.compareTo(a.safetyScore));
-    final bestIndex = 0;
+    final preferredMode =
+        selectedMode ??
+        (options.any((option) => option.transportHint == 'walking')
+            ? 'walking'
+            : options.first.transportHint);
+    final bestIndex = options.indexWhere(
+      (option) => option.transportHint == preferredMode,
+    );
 
     if (!mounted) return;
     setState(() {
       _routeOptions = options;
-      _bestRouteIndex = bestIndex;
-      _selectedRouteIndex = bestIndex;
+      _bestRouteIndex = bestIndex < 0 ? 0 : bestIndex;
+      _selectedRouteIndex = _bestRouteIndex;
       _isLoadingSuggestions = false;
-      _selectedTransportMode ??= options[bestIndex].transportHint;
+      _selectedTransportMode ??= options[_bestRouteIndex!].transportHint;
     });
   }
 
-  List<String> _recommendedModes(_RouteOption option) {
-    final distanceKm = option.totalDistance / 1000.0;
-    final recommendations = <String>{};
-
-    if (distanceKm <= 2) {
-      recommendations.addAll(<String>['Walking', 'Bicycle', 'Motorcycle']);
-    } else if (distanceKm <= 8) {
-      recommendations.addAll(<String>['Bicycle', 'Motorcycle', 'Car', 'Taxi']);
-    } else {
-      recommendations.addAll(<String>['Car', 'Taxi', 'Motorcycle']);
-    }
-
-    if (distanceKm > 10) {
-      recommendations.remove('Walking');
-      recommendations.add('Bus');
-    }
-
-    if (option.hasBusStopsNearEndpoints) {
-      recommendations.add('Bus');
-      recommendations.add('Tricycle');
-    }
-
-    recommendations.add('Car');
-
-    final ordered = <String>[];
-    for (final mode in _transportModes) {
-      if (recommendations.contains(mode)) ordered.add(mode);
-    }
-    return ordered;
+  int _transportModeOrder(String mode) {
+    final index = _transportModes.indexWhere(
+      (item) => item.toLowerCase() == mode.toLowerCase(),
+    );
+    return index < 0 ? _transportModes.length : index;
   }
 
-  Future<void> _showConfirmSheet() async {
+  String _routeLabel(String mode, int alternativeIndex) {
+    final title = mode == 'taxi'
+        ? 'Taxi'
+        : mode == 'bus'
+        ? 'Bus'
+        : mode == 'motorcycle'
+        ? 'Motorcycle'
+        : mode == 'tricycle'
+        ? 'Tricycle'
+        : 'Walking';
+    return alternativeIndex == 0
+        ? '$title best route'
+        : '$title route ${alternativeIndex + 1}';
+  }
+
+  IconData _transportModeIcon(String mode) {
+    return switch (mode.toLowerCase()) {
+      'walking' => Icons.directions_walk,
+      'bus' => Icons.directions_bus,
+      'taxi' => Icons.local_taxi,
+      'motorcycle' => Icons.two_wheeler,
+      'tricycle' => Icons.pedal_bike,
+      _ => Icons.alt_route,
+    };
+  }
+
+  List<int> _visibleRouteIndexes() {
+    final selectedMode = _selectedTransportMode?.toLowerCase();
+    if (selectedMode == null || selectedMode.isEmpty) {
+      return List<int>.generate(_routeOptions.length, (index) => index);
+    }
+    final indexes = <int>[];
+    for (var i = 0; i < _routeOptions.length; i++) {
+      if (_routeOptions[i].transportHint == selectedMode) indexes.add(i);
+    }
+    return indexes;
+  }
+
+  Future<void> _startSelectedRoute() async {
     final selectedIndex = _selectedRouteIndex;
     if (selectedIndex == null || selectedIndex >= _routeOptions.length) return;
     final option = _routeOptions[selectedIndex];
-    final availableModes = _recommendedModes(option);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, modalSetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Confirm Route',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text('From: ${_originController.text.trim()}'),
-                Text('To: ${_destinationController.text.trim()}'),
-                const SizedBox(height: 8),
-                Text(
-                  'Route: ${option.label}${selectedIndex == _bestRouteIndex ? ' (Safest)' : ''}',
-                ),
-                Text(
-                  'Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100',
-                ),
-                Text(
-                  'Transport poverty: ${option.transportPovertyBand} (${option.transportPovertyScore.toStringAsFixed(0)} / 100)',
-                ),
-                Text('Distance: ${_formatDistance(option.totalDistance)}'),
-                Text(
-                  option.hasBusStopsNearEndpoints
-                      ? 'Bus stops: available near endpoints'
-                      : 'Bus stops: not detected near endpoints',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Available transportation modes',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final mode in availableModes)
-                      ChoiceChip(
-                        label: Text(mode),
-                        selected: _selectedTransportMode == mode,
-                        onSelected: (_) {
-                          modalSetState(() {
-                            _selectedTransportMode = mode;
-                          });
-                          setState(() {
-                            _selectedTransportMode = mode;
-                          });
-                        },
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _selectedTransportMode == null
-                        ? null
-                        : () async {
-                            Navigator.of(sheetContext).pop();
-                            final result = await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => RouteRecorderScreen(
-                                  startPoint: _start!,
-                                  destination: _destination!,
-                                  startLocationName: _originController.text
-                                      .trim(),
-                                  endLocationName: _destinationController.text
-                                      .trim(),
-                                  transportMode: _selectedTransportMode!,
-                                  plannedRoutePoints: option.points,
-                                  plannedRouteLabel: option.label,
-                                  plannedRouteSafetyScore: option.safetyScore,
-                                  userId: widget.userId,
-                                ),
-                              ),
-                            );
-                            if (!mounted || result == null) return;
-                            if (widget.embedded) return;
-                            Navigator.of(context).pop(result);
-                          },
-                    child: const Text('Start'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RouteRecorderScreen(
+          startPoint: _start!,
+          destination: _destination!,
+          startLocationName: _originController.text.trim(),
+          endLocationName: _destinationController.text.trim(),
+          transportMode: option.transportHint,
+          plannedRoutePoints: option.points,
+          plannedRouteLabel: option.label,
+          userId: widget.userId,
         ),
       ),
     );
+    if (!mounted || result == null) return;
+    if (widget.embedded) return;
+    Navigator.of(context).pop(result);
   }
 
   Widget _buildTopPanel(BuildContext context) {
@@ -792,9 +584,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ? Theme.of(context).colorScheme.surfaceContainerHighest
         : Colors.white.withValues(alpha: 0.96);
     final textColor = isDark ? Colors.white : Colors.black;
-    final selectedOption = _selectedRouteIndex != null && _selectedRouteIndex! < _routeOptions.length
-      ? _routeOptions[_selectedRouteIndex!]
-      : null;
+    final visibleIndexes = _visibleRouteIndexes();
 
     return Material(
       elevation: 3,
@@ -807,57 +597,40 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Route Suggestions',
+              'Route options',
               style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
             ),
-            if (selectedOption != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _transportPovertyColor(selectedOption.transportPovertyScore).withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _transportPovertyColor(selectedOption.transportPovertyScore).withValues(alpha: 0.35),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.groups_outlined,
-                      size: 18,
-                      color: _transportPovertyColor(selectedOption.transportPovertyScore),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Transport poverty: ${selectedOption.transportPovertyBand} (${selectedOption.transportPovertyScore.toStringAsFixed(0)} / 100)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
             const SizedBox(height: 8),
-            // Transport mode selector like Google Maps
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final mode in ['Bus', 'Taxi', 'Motorcycle'])
+                  for (final mode in _transportModes)
                     Padding(
                       padding: const EdgeInsets.only(right: 8, bottom: 8),
-                      child: FilterChip(
+                      child: ChoiceChip(
+                        avatar: Icon(
+                          _transportModeIcon(mode),
+                          size: 18,
+                          color:
+                              _selectedTransportMode?.toLowerCase() ==
+                                  mode.toLowerCase()
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : null,
+                        ),
                         label: Text(mode),
                         selected: _selectedTransportMode?.toLowerCase() == mode.toLowerCase(),
                         onSelected: (_) {
+                          final normalizedMode = mode.toLowerCase();
+                          final firstForMode = _routeOptions.indexWhere(
+                            (option) => option.transportHint == normalizedMode,
+                          );
                           setState(() {
-                            _selectedTransportMode = mode.toLowerCase();
+                            _selectedTransportMode = normalizedMode;
+                            if (firstForMode >= 0) {
+                              _selectedRouteIndex = firstForMode;
+                              _bestRouteIndex = firstForMode;
+                            }
                           });
                         },
                       ),
@@ -865,7 +638,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 ],
               ),
             ),
-            for (var i = 0; i < _routeOptions.length; i++)
+            for (final i in visibleIndexes)
               InkWell(
                 onTap: () {
                   setState(() {
@@ -896,13 +669,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         height: 34,
                         margin: const EdgeInsets.only(right: 8),
                         decoration: BoxDecoration(
-                          color: _transportPovertyColor(_routeOptions[i].transportPovertyScore),
+                          color: _selectedRouteIndex == i
+                              ? Colors.blueAccent
+                              : Colors.grey.shade400,
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
                       Expanded(
                         child: Text(
-                          '${_routeOptions[i].label}${_bestRouteIndex == i ? ' (Safest)' : ''}',
+                          _routeOptions[i].label,
                           style: TextStyle(
                             fontWeight: _bestRouteIndex == i
                                 ? FontWeight.w700
@@ -912,7 +687,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         ),
                       ),
                       Text(
-                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • Poverty ${_routeOptions[i].transportPovertyBand} • ${_formatDistance(_routeOptions[i].totalDistance)}',
+                        '${_formatDuration(_routeOptions[i].totalDuration)} | ${_formatDistance(_routeOptions[i].totalDistance)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark
@@ -939,7 +714,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       child: SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          onPressed: canConfirm ? _showConfirmSheet : null,
+          onPressed: canConfirm ? _startSelectedRoute : null,
           icon: const Icon(Icons.play_arrow),
           label: const Text('Start route'),
         ),
@@ -988,7 +763,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           ),
       },
       polylines: {
-        for (var index = 0; index < _routeOptions.length; index++)
+        for (final index in _visibleRouteIndexes())
           gmaps.Polyline(
             polylineId: gmaps.PolylineId('option_$index'),
             points: _routeOptions[index].points.map(_toGoogleLatLng).toList(),
@@ -1032,7 +807,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedTransportMode = widget.initialTransportMode;
+    _selectedTransportMode = widget.initialTransportMode?.toLowerCase();
     _bootstrapLocation();
   }
 
