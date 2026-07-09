@@ -7,7 +7,7 @@
 <div class="topbar">
   <div>
     <h1>Operations Overview</h1>
-    <div class="subtle">Live database summary for commuters, recorded routes, and safety signals.</div>
+    <div class="subtle">Live operating picture for commuters, recorded journeys, and reported incidents.</div>
   </div>
   <a class="button primary" href="/dashboard/users/new">New user</a>
 </div>
@@ -24,15 +24,14 @@
 
 <section class="card" style="margin-top:16px;">
   <div class="section-title">
-    <h2>Route and complaint map</h2>
-    <span class="subtle">Routes are drawn as polylines. Incident reports and SOS sends are pinned to the reported location.</span>
+    <h2>Operational map</h2>
+    <span class="subtle">Complete saved routes are drawn as polylines. Incident reports and SOS sends are pinned to their reported location.</span>
   </div>
   <div class="map-shell">
     <div id="overview-map" class="map-canvas"></div>
     <div class="map-legend">
-      <span><i class="dot" style="background:#0f7a5a;"></i>Recorded routes</span>
+      <span><i class="dot" style="background:#0f7a5a;"></i>Saved routes</span>
       <span><i class="dot" style="background:#b42318;"></i>Complaints</span>
-      <span><i class="dot" style="background:#ea580c;"></i>Transport poverty</span>
     </div>
   </div>
 </section>
@@ -63,7 +62,7 @@
   </section>
 
   <section class="card">
-    <div class="section-title"><h2>Transport mix</h2></div>
+    <div class="section-title"><h2>Mode distribution</h2></div>
     {% for row in mode_rows %}
     <div class="bar-row">
       <div class="bar-meta"><strong>{{ row.transport_mode }}</strong><span>{{ row.route_count }} routes</span></div>
@@ -77,7 +76,7 @@
 
 <section class="card" style="margin-top:16px;">
   <div class="section-title">
-    <h2>Incident hot spots</h2>
+    <h2>Incident locations</h2>
     <span class="subtle">Grouped from reported incidents and SOS sends with a location attached.</span>
   </div>
   <table>
@@ -102,17 +101,14 @@
 {% block extra_scripts %}
 {{ route_map_data|json_script:"overview-route-map-data" }}
 {{ complaint_map_data|json_script:"overview-complaint-map-data" }}
-{{ transport_poverty_data|json_script:"overview-transport-poverty-data" }}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 (function () {
   const routeData = JSON.parse(document.getElementById('overview-route-map-data').textContent || '[]');
   const complaintData = JSON.parse(document.getElementById('overview-complaint-map-data').textContent || '[]');
-  const povertyData = JSON.parse(document.getElementById('overview-transport-poverty-data').textContent || '[]');
   const map = L.map('overview-map', { scrollWheelZoom: false });
   const routeLayer = L.featureGroup().addTo(map);
   const complaintLayer = L.featureGroup().addTo(map);
-  const povertyLayer = L.featureGroup().addTo(map);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -120,14 +116,6 @@
   }).addTo(map);
 
   const bounds = [];
-
-  function transportPovertyColor(score) {
-    const value = Number(score || 0);
-    if (value >= 75) return '#7a0019';
-    if (value >= 55) return '#b42318';
-    if (value >= 35) return '#ea580c';
-    return '#335c99';
-  }
 
   function routePoints(route) {
     let coordinates = route.coordinates || [];
@@ -194,30 +182,6 @@
       `Reported incidents: ${complaint.reported_incidents}<br>` +
       `SOS sent: ${complaint.sos_sent}<br>` +
       `${complaint.sample_description || ''}`
-    );
-    bounds.push([lat, lng]);
-  });
-
-  povertyData.forEach((cell) => {
-    const lat = Number(cell.latitude);
-    const lng = Number(cell.longitude);
-    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-
-    const score = Number(cell.transport_poverty_score || 0);
-    const marker = L.circleMarker([lat, lng], {
-      radius: Math.max(8, Math.min(22, 6 + score / 5)),
-      color: transportPovertyColor(score),
-      fillColor: transportPovertyColor(score),
-      fillOpacity: 0.34,
-      weight: 2,
-    }).addTo(povertyLayer);
-    marker.bindPopup(
-      `<strong>Transport poverty signal</strong><br>` +
-      `Score: ${score.toFixed(1)} / 100<br>` +
-      `Routes: ${cell.route_count}<br>` +
-      `Bus routes: ${cell.bus_routes}<br>` +
-      `Walking routes: ${cell.walking_routes}<br>` +
-      `Average rating: ${cell.average_rating}`
     );
     bounds.push([lat, lng]);
   });
