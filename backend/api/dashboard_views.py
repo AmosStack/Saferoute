@@ -733,6 +733,68 @@ def _gis_density_rows(limit: int = 60, scope_sql: str = "1=1", scope_params: lis
     return rows
 
 
+def _transport_poverty_rows(limit: int = 60, scope_sql: str = "1=1", scope_params: list[str] | None = None):
+    scope_params = scope_params or []
+    with connection.cursor() as cursor:
+        scope_where = f"WHERE {scope_sql}" if scope_sql != "1=1" else ""
+        cursor.execute(
+            """
+            SELECT
+                ROUND(((rr.start_latitude + rr.end_latitude) / 2)::numeric, 3) AS latitude,
+                ROUND(((rr.start_longitude + rr.end_longitude) / 2)::numeric, 3) AS longitude,
+                COUNT(*) AS route_count,
+                COUNT(*) FILTER (WHERE LOWER(COALESCE(rr.transport_mode, '')) = 'bus') AS bus_routes,
+                COUNT(*) FILTER (WHERE LOWER(COALESCE(rr.transport_mode, '')) = 'walking') AS walking_routes,
+                COALESCE(SUM(rr.distance_meters), 0) AS distance_meters,
+                COALESCE(SUM(rr.duration_seconds), 0) AS duration_seconds,
+                COALESCE(ROUND(AVG(rr.rating)::numeric, 2), 0) AS average_rating,
+                COALESCE(ROUND(AVG(
+                    LEAST(
+                        100,
+                        GREATEST(
+                            0,
+                            18
+                            + (COALESCE(rr.distance_meters, 0) / 1000.0) * 4.5
+                            + (COALESCE(rr.duration_seconds, 0) / 60.0) * 1.8
+                            + COALESCE(rr.waiting_time_minutes, 0) * 3
+                            + COALESCE(rr.transfer_count, 0) * 7
+                            + CASE
+                                WHEN LOWER(COALESCE(rr.transport_mode, '')) = 'walking' THEN 18
+                                WHEN LOWER(COALESCE(rr.transport_mode, '')) = 'bicycle' THEN 10
+                                WHEN LOWER(COALESCE(rr.transport_mode, '')) = 'tricycle' THEN 7
+                                WHEN LOWER(COALESCE(rr.transport_mode, '')) = 'motorcycle' THEN 4
+                                WHEN LOWER(COALESCE(rr.transport_mode, '')) = 'bus' THEN -12
+                                ELSE 5
+                            END
+                            + CASE
+                                WHEN rr.rating IS NULL THEN 8
+                                WHEN rr.rating <= 2 THEN 18
+                                WHEN rr.rating = 3 THEN 10
+                                WHEN rr.rating = 4 THEN 4
+                                ELSE 0
+                            END
+                        )
+                    )
+                )::numeric, 2), 0) AS transport_poverty_score,
+                MAX(rr.transport_mode) AS sample_mode
+            FROM saferoute.recorded_routes rr
+            """ + scope_where + """
+            GROUP BY 1, 2
+            ORDER BY transport_poverty_score DESC, route_count DESC
+            LIMIT %s
+            """,
+            scope_params + [limit],
+        )
+        rows = _dictfetchall(cursor)
+
+    for row in rows:
+        row["latitude"] = _json_ready(row.get("latitude"))
+        row["longitude"] = _json_ready(row.get("longitude"))
+        row["distance_km"] = round(float(row.get("distance_meters") or 0) / 1000, 2)
+        row["duration_minutes"] = round(float(row.get("duration_seconds") or 0) / 60, 1)
+    return rows
+
+
 def _mode_analysis_rows(scope_sql: str = "1=1", scope_params: list[str] | None = None):
     scope_params = scope_params or []
     with connection.cursor() as cursor:
@@ -807,6 +869,7 @@ def dashboard_home(request: HttpRequest):
     recent_routes = _safe_dashboard_rows("recent activity", lambda: _recent_activity_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]))
     route_map_data = _safe_dashboard_rows("route map", lambda: _route_map_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]))
     complaint_map_data = _safe_dashboard_rows("complaint map", lambda: _complaint_map_rows(scope_sql=scope["location_scope_sql"], scope_params=scope["location_scope_params"]))
+    transport_poverty_data = _safe_dashboard_rows("transport poverty map", lambda: _transport_poverty_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]))
 
     return render(
         request,
@@ -818,6 +881,7 @@ def dashboard_home(request: HttpRequest):
             "mode_rows": mode_rows,
             "route_map_data": route_map_data,
             "complaint_map_data": complaint_map_data,
+            "transport_poverty_data": transport_poverty_data,
         },
     )
 
@@ -1173,6 +1237,10 @@ def gis_policy_workspace(request: HttpRequest):
         "gis complaint map",
         lambda: _complaint_map_rows(limit=200, scope_sql=location_scope_sql, scope_params=location_scope_params),
     )
+    transport_poverty_data = _safe_dashboard_rows(
+        "gis transport poverty",
+        lambda: _transport_poverty_rows(limit=200, scope_sql=route_scope_sql, scope_params=route_scope_params),
+    )
     density_rows = _safe_dashboard_rows(
         "gis density",
         lambda: _gis_density_rows(scope_sql=route_scope_sql, scope_params=route_scope_params),
@@ -1185,6 +1253,7 @@ def gis_policy_workspace(request: HttpRequest):
 
     top_hotspot = complaint_map_data[0] if complaint_map_data else None
     top_density = density_rows[0] if density_rows else None
+    top_poverty = transport_poverty_data[0] if transport_poverty_data else None
     top_mode = mode_rows[0] if mode_rows else None
     low_rating_modes = [
         row for row in mode_rows
@@ -1195,6 +1264,7 @@ def gis_policy_workspace(request: HttpRequest):
         "metrics": _json_ready(metrics),
         "top_hotspot": _json_ready(top_hotspot or {}),
         "top_density": _json_ready(top_density or {}),
+        "top_poverty": _json_ready(top_poverty or {}),
         "top_mode": _json_ready(top_mode or {}),
         "low_rating_modes": _json_ready(low_rating_modes),
         "scope": {
@@ -1215,9 +1285,11 @@ def gis_policy_workspace(request: HttpRequest):
             "density_rows": density_rows,
             "route_map_data": route_map_data,
             "complaint_map_data": complaint_map_data,
+            "transport_poverty_data": transport_poverty_data,
             "policy_context": policy_context,
             "top_hotspot": top_hotspot,
             "top_density": top_density,
+            "top_poverty": top_poverty,
             "wards": available_wards,
             "selected_ward_id": selected_ward_id,
             "selected_ward_label": selected_ward_label,
