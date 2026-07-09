@@ -129,8 +129,21 @@ class GoogleMapsApiService {
     required LatLng destination,
     required String transportMode,
   }) async {
+    final routes = await directionsAlternatives(
+      start: start,
+      destination: destination,
+      transportMode: transportMode,
+    );
+    return routes.isEmpty ? null : routes.first;
+  }
+
+  static Future<List<GoogleRouteResult>> directionsAlternatives({
+    required LatLng start,
+    required LatLng destination,
+    required String transportMode,
+  }) async {
     if (!hasApiKey) {
-      return _osrmDirections(
+      return _osrmDirectionsAlternatives(
         start: start,
         destination: destination,
         transportMode: transportMode,
@@ -142,7 +155,7 @@ class GoogleMapsApiService {
       'origin': '${start.latitude},${start.longitude}',
       'destination': '${destination.latitude},${destination.longitude}',
       'mode': mode,
-      'alternatives': 'false',
+      'alternatives': 'true',
     };
     if (transportMode.toLowerCase().trim() == 'bus') {
       query['transit_mode'] = 'bus';
@@ -157,39 +170,13 @@ class GoogleMapsApiService {
         if (data['status'] == 'OK') {
           final routes = data['routes'] as List?;
           if (routes != null && routes.isNotEmpty) {
-            final route = routes.first as Map<String, dynamic>;
-            final legs = route['legs'] as List?;
-            if (legs != null && legs.isNotEmpty) {
-              var distanceMeters = 0.0;
-              var durationSeconds = 0;
-              for (final rawLeg in legs) {
-                final leg = rawLeg as Map<String, dynamic>;
-                distanceMeters +=
-                    ((leg['distance'] as Map<String, dynamic>?)?['value']
-                            as num?)
-                        ?.toDouble() ??
-                    0.0;
-                durationSeconds +=
-                    ((leg['duration'] as Map<String, dynamic>?)?['value']
-                            as num?)
-                        ?.toInt() ??
-                    0;
-              }
-
-              final overviewPolyline =
-                  route['overview_polyline'] as Map<String, dynamic>?;
-              final encodedPolyline = overviewPolyline?['points']?.toString();
-              final points = encodedPolyline == null
-                  ? const <LatLng>[]
-                  : _decodePolyline(encodedPolyline);
-              if (points.length >= 2) {
-                return GoogleRouteResult(
-                  points: points,
-                  distanceMeters: distanceMeters,
-                  durationSeconds: durationSeconds,
-                );
-              }
+            final parsedRoutes = <GoogleRouteResult>[];
+            for (final rawRoute in routes.take(4)) {
+              final route = rawRoute as Map<String, dynamic>;
+              final parsed = _parseGoogleRoute(route);
+              if (parsed != null) parsedRoutes.add(parsed);
             }
+            if (parsedRoutes.isNotEmpty) return parsedRoutes;
           }
         }
       }
@@ -197,10 +184,43 @@ class GoogleMapsApiService {
       debugPrint('Google directions failed: $e');
     }
 
-    return _osrmDirections(
+    return _osrmDirectionsAlternatives(
       start: start,
       destination: destination,
       transportMode: transportMode,
+    );
+  }
+
+  static GoogleRouteResult? _parseGoogleRoute(Map<String, dynamic> route) {
+    final legs = route['legs'] as List?;
+    if (legs == null || legs.isEmpty) return null;
+
+    var distanceMeters = 0.0;
+    var durationSeconds = 0;
+    for (final rawLeg in legs) {
+      final leg = rawLeg as Map<String, dynamic>;
+      distanceMeters +=
+          ((leg['distance'] as Map<String, dynamic>?)?['value'] as num?)
+              ?.toDouble() ??
+          0.0;
+      durationSeconds +=
+          ((leg['duration'] as Map<String, dynamic>?)?['value'] as num?)
+              ?.toInt() ??
+          0;
+    }
+
+    final overviewPolyline =
+        route['overview_polyline'] as Map<String, dynamic>?;
+    final encodedPolyline = overviewPolyline?['points']?.toString();
+    final points = encodedPolyline == null
+        ? const <LatLng>[]
+        : _decodePolyline(encodedPolyline);
+    if (points.length < 2) return null;
+
+    return GoogleRouteResult(
+      points: points,
+      distanceMeters: distanceMeters,
+      durationSeconds: durationSeconds,
     );
   }
 
@@ -347,6 +367,19 @@ class GoogleMapsApiService {
     required LatLng destination,
     required String transportMode,
   }) async {
+    final routes = await _osrmDirectionsAlternatives(
+      start: start,
+      destination: destination,
+      transportMode: transportMode,
+    );
+    return routes.isEmpty ? null : routes.first;
+  }
+
+  static Future<List<GoogleRouteResult>> _osrmDirectionsAlternatives({
+    required LatLng start,
+    required LatLng destination,
+    required String transportMode,
+  }) async {
     final preferredProfile = _osrmProfile(transportMode);
     final profiles = <String>[
       preferredProfile,
@@ -364,6 +397,7 @@ class GoogleMapsApiService {
                 'overview': 'full',
                 'geometries': 'geojson',
                 'steps': 'false',
+                'alternatives': 'true',
               },
             );
 
@@ -378,30 +412,36 @@ class GoogleMapsApiService {
         final routes = data['routes'] as List?;
         if (routes == null || routes.isEmpty) continue;
 
-        final route = routes.first as Map<String, dynamic>;
-        final geometry = route['geometry'] as Map<String, dynamic>?;
-        final coordinates = geometry?['coordinates'] as List?;
-        if (coordinates == null || coordinates.length < 2) continue;
+        final parsedRoutes = <GoogleRouteResult>[];
+        for (final rawRoute in routes.take(4)) {
+          final route = rawRoute as Map<String, dynamic>;
+          final geometry = route['geometry'] as Map<String, dynamic>?;
+          final coordinates = geometry?['coordinates'] as List?;
+          if (coordinates == null || coordinates.length < 2) continue;
 
-        final points = <LatLng>[];
-        for (final coordinate in coordinates) {
-          final pair = coordinate as List;
-          final lng = (pair[0] as num).toDouble();
-          final lat = (pair[1] as num).toDouble();
-          points.add(LatLng(lat, lng));
+          final points = <LatLng>[];
+          for (final coordinate in coordinates) {
+            final pair = coordinate as List;
+            final lng = (pair[0] as num).toDouble();
+            final lat = (pair[1] as num).toDouble();
+            points.add(LatLng(lat, lng));
+          }
+
+          parsedRoutes.add(
+            GoogleRouteResult(
+              points: points,
+              distanceMeters: ((route['distance'] as num?) ?? 0).toDouble(),
+              durationSeconds: ((route['duration'] as num?) ?? 0).round(),
+            ),
+          );
         }
-
-        return GoogleRouteResult(
-          points: points,
-          distanceMeters: ((route['distance'] as num?) ?? 0).toDouble(),
-          durationSeconds: ((route['duration'] as num?) ?? 0).round(),
-        );
+        if (parsedRoutes.isNotEmpty) return parsedRoutes;
       } catch (e) {
         debugPrint('OSRM directions failed for $profile: $e');
       }
     }
 
-    return null;
+    return const <GoogleRouteResult>[];
   }
 
   static String? _shortOsmName(Map<String, dynamic> item) {
