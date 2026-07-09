@@ -151,6 +151,7 @@
     <label><input type="checkbox" id="layer-routes" checked> Routes</label>
     <label><input type="checkbox" id="layer-hotspots" checked> Hot spots</label>
     <label><input type="checkbox" id="layer-density" checked> Density cells</label>
+    <label><input type="checkbox" id="layer-poverty" checked> Transport poverty</label>
   </div>
   <div class="map-shell" style="margin-top:12px;">
     <div id="gis-map" class="map-canvas"></div>
@@ -158,6 +159,7 @@
       <span><i class="dot" style="background:#0f7a5a;"></i>Route polyline</span>
       <span><i class="dot" style="background:#b42318;"></i>Complaint hot spot</span>
       <span><i class="dot" style="background:#335c99;"></i>Route density</span>
+      <span><i class="dot" style="background:#ea580c;"></i>Transport poverty</span>
     </div>
   </div>
 </section>
@@ -211,6 +213,10 @@
         <span>Highest route density cell</span>
         <strong>{% if top_density %}{{ top_density.route_count }} routes near {{ top_density.latitude }}, {{ top_density.longitude }}{% else %}No density cells{% endif %}</strong>
       </div>
+      <div>
+        <span>Highest transport poverty signal</span>
+        <strong>{% if top_poverty %}{{ top_poverty.transport_poverty_score }} near {{ top_poverty.latitude }}, {{ top_poverty.longitude }}{% else %}No transport poverty cells{% endif %}</strong>
+      </div>
     </div>
   </section>
 </div>
@@ -234,6 +240,7 @@
 {{ route_map_data|json_script:"gis-route-map-data" }}
 {{ complaint_map_data|json_script:"gis-complaint-map-data" }}
 {{ density_rows|json_script:"gis-density-data" }}
+{{ transport_poverty_data|json_script:"gis-transport-poverty-data" }}
 {{ policy_context|json_script:"gis-policy-context" }}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -241,6 +248,7 @@
   const routes = JSON.parse(document.getElementById('gis-route-map-data').textContent || '[]');
   const complaints = JSON.parse(document.getElementById('gis-complaint-map-data').textContent || '[]');
   const density = JSON.parse(document.getElementById('gis-density-data').textContent || '[]');
+  const poverty = JSON.parse(document.getElementById('gis-transport-poverty-data').textContent || '[]');
   const policy = JSON.parse(document.getElementById('gis-policy-context').textContent || '{}');
   const output = document.getElementById('generated-output');
   const selectedScope = policy.scope || {};
@@ -261,6 +269,7 @@
   const routeLayer = L.featureGroup();
   const complaintLayer = L.featureGroup();
   const densityLayer = L.featureGroup();
+  const povertyLayer = L.featureGroup();
   const wardLayer = L.featureGroup();
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -653,10 +662,19 @@
     return [start, end].filter((point) => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
   }
 
+  function transportPovertyColor(score) {
+    const value = Number(score || 0);
+    if (value >= 75) return '#7a0019';
+    if (value >= 55) return '#b42318';
+    if (value >= 35) return '#ea580c';
+    return '#335c99';
+  }
+
   function drawMap() {
     routeLayer.clearLayers();
     complaintLayer.clearLayers();
     densityLayer.clearLayers();
+    povertyLayer.clearLayers();
     const bounds = [];
 
     routes.forEach((route) => {
@@ -698,6 +716,28 @@
       bounds.push([lat, lng]);
     });
 
+    poverty.forEach((cell) => {
+      const lat = Number(cell.latitude);
+      const lng = Number(cell.longitude);
+      if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+      const score = Number(cell.transport_poverty_score || 0);
+      L.circleMarker([lat, lng], {
+        radius: Math.max(8, Math.min(22, 6 + score / 5)),
+        color: transportPovertyColor(score),
+        fillColor: transportPovertyColor(score),
+        fillOpacity: 0.32,
+        weight: 2,
+      }).bindPopup(
+        `<strong>Transport poverty signal</strong><br>` +
+        `Score: ${score.toFixed(1)} / 100<br>` +
+        `Routes: ${cell.route_count || 0}<br>` +
+        `Bus routes: ${cell.bus_routes || 0}<br>` +
+        `Walking routes: ${cell.walking_routes || 0}<br>` +
+        `Avg rating: ${cell.average_rating || 0}`
+      ).addTo(povertyLayer);
+      bounds.push([lat, lng]);
+    });
+
     updateLayers();
     if (bounds.length) {
       map.fitBounds(bounds, { padding: [24, 24] });
@@ -711,6 +751,7 @@
       [document.getElementById('layer-routes').checked, routeLayer],
       [document.getElementById('layer-hotspots').checked, complaintLayer],
       [document.getElementById('layer-density').checked, densityLayer],
+      [document.getElementById('layer-poverty').checked, povertyLayer],
     ];
     pairs.forEach(([enabled, layer]) => {
       if (enabled && !map.hasLayer(layer)) layer.addTo(map);
@@ -749,6 +790,7 @@
     const metrics = policy.metrics || {};
     const topHotspot = policy.top_hotspot || {};
     const topDensity = policy.top_density || {};
+    const topPoverty = policy.top_poverty || {};
     const topMode = policy.top_mode || {};
     return [
       'AUTOMATED POLICY BRIEF',
@@ -760,6 +802,7 @@
       'Evidence base:',
       `The dashboard aggregates ${summaryValue(metrics.recorded_routes, 0)} recorded routes, ${summaryValue(metrics.safety_reports, 0)} safety reports, and ${summaryValue(metrics.incidents, 0)} linked incident records.`,
       `The most active transport mode is ${summaryValue(topMode.transport_mode, 'not yet established')}. The strongest GIS density signal is near ${summaryValue(topDensity.latitude, '-')} / ${summaryValue(topDensity.longitude, '-')}.`,
+      `The strongest transport poverty signal is ${summaryValue(topPoverty.transport_poverty_score, '-')} near ${summaryValue(topPoverty.latitude, '-')} / ${summaryValue(topPoverty.longitude, '-')}.`,
       `The leading complaint location is ${summaryValue(topHotspot.location_name, 'not yet available')}.`,
       '',
       'Policy priorities:',
@@ -774,7 +817,7 @@
   }
 
   document.getElementById('generate-map').addEventListener('click', drawMap);
-  ['layer-routes', 'layer-hotspots', 'layer-density'].forEach((id) => {
+  ['layer-routes', 'layer-hotspots', 'layer-density', 'layer-poverty'].forEach((id) => {
     document.getElementById(id).addEventListener('change', updateLayers);
   });
   document.getElementById('run-analysis').addEventListener('click', () => { output.textContent = analysisText(); });
