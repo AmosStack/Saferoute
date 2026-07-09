@@ -44,57 +44,75 @@ class RoutePathPlannerService {
     LatLng destination,
     String transportMode,
   ) async {
+    final alternatives = await calculatePathAlternatives(
+      start,
+      destination,
+      transportMode,
+    );
+    return alternatives.isEmpty ? null : alternatives.first;
+  }
+
+  static Future<List<List<PathSegment>>> calculatePathAlternatives(
+    LatLng start,
+    LatLng destination,
+    String transportMode,
+  ) async {
     try {
-      // Normalize transport mode
       final mode = transportMode.toLowerCase().trim();
 
       if (mode == 'bus') {
-        return await _calculateBusPath(start, destination);
+        return await _calculateBusPaths(start, destination);
       } else if (mode == 'bicycle') {
-        return await _calculateRoute(start, destination, 'bike');
+        return await _calculateRoutes(start, destination, 'bike');
       } else if (mode == 'walking') {
-        return await _calculateRoute(start, destination, 'foot');
+        return await _calculateRoutes(start, destination, 'foot');
       } else if (mode == 'motorcycle' || mode == 'car' || mode == 'taxi') {
-        return await _calculateRoute(start, destination, 'driving');
+        return await _calculateRoutes(start, destination, mode);
       } else if (mode == 'tricycle') {
-        // Tricycle: use driving profile but could be more nuanced
-        return await _calculateRoute(start, destination, 'driving');
+        return await _calculateRoutes(start, destination, 'tricycle');
       } else {
-        // Default to driving
-        return await _calculateRoute(start, destination, 'driving');
+        return await _calculateRoutes(start, destination, 'driving');
       }
     } catch (e) {
       debugPrint('Error calculating path: $e');
-      return null;
+      return const <List<PathSegment>>[];
     }
   }
 
-  /// Calculate a single-segment route using Google Directions API.
-  static Future<List<PathSegment>?> _calculateRoute(
+  static Future<List<List<PathSegment>>> _calculateRoutes(
     LatLng start,
     LatLng destination,
     String profile,
   ) async {
     try {
       final transportMode = _profileToMode(profile);
-      final route = await GoogleMapsApiService.directions(
+      final routes = await GoogleMapsApiService.directionsAlternatives(
         start: start,
         destination: destination,
         transportMode: transportMode,
       );
-      if (route == null || route.points.length < 2) return null;
+      if (routes.isEmpty) return const <List<PathSegment>>[];
 
-      return [
-        PathSegment(
-          transportMode: transportMode,
-          points: route.points,
-          distance: route.distanceMeters,
-          duration: _routeDurationSeconds(route.durationSeconds, route.points, transportMode),
-        ),
-      ];
+      return routes
+          .where((route) => route.points.length >= 2)
+          .map(
+            (route) => [
+              PathSegment(
+                transportMode: transportMode,
+                points: route.points,
+                distance: route.distanceMeters,
+                duration: _routeDurationSeconds(
+                  route.durationSeconds,
+                  route.points,
+                  transportMode,
+                ),
+              ),
+            ],
+          )
+          .toList(growable: false);
     } catch (e) {
       debugPrint('Error calculating route: $e');
-      return null;
+      return const <List<PathSegment>>[];
     }
   }
 
@@ -127,15 +145,15 @@ class RoutePathPlannerService {
     return _estimateDurationSeconds(points, transportMode);
   }
 
-  static Future<List<PathSegment>?> _calculateBusPath(
+  static Future<List<List<PathSegment>>> _calculateBusPaths(
     LatLng start,
     LatLng destination,
   ) async {
     try {
-      return await _calculateRoute(start, destination, 'transit_bus');
+      return await _calculateRoutes(start, destination, 'transit_bus');
     } catch (e) {
       debugPrint('Error calculating bus path: $e');
-      return null;
+      return const <List<PathSegment>>[];
     }
   }
 
@@ -157,6 +175,12 @@ class RoutePathPlannerService {
       case 'driving':
       case 'transit_bus':
       default:
+        if (profile == 'taxi' ||
+            profile == 'motorcycle' ||
+            profile == 'tricycle' ||
+            profile == 'car') {
+          return profile;
+        }
         return profile == 'transit_bus' ? 'bus' : 'driving';
     }
   }
