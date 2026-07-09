@@ -26,7 +26,6 @@ class RouteRecorderScreen extends StatefulWidget {
     required this.transportMode,
     this.plannedRoutePoints = const <ll.LatLng>[],
     this.plannedRouteLabel,
-    this.plannedRouteSafetyScore,
     this.userId,
   });
 
@@ -37,7 +36,6 @@ class RouteRecorderScreen extends StatefulWidget {
   final String transportMode;
   final List<ll.LatLng> plannedRoutePoints;
   final String? plannedRouteLabel;
-  final double? plannedRouteSafetyScore;
   final int? userId;
 
   @override
@@ -489,6 +487,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     ll.LatLng? endPoint,
     String? endLocationName,
     String? extraNotes,
+    bool saveCompletePlannedPath = false,
   }) async {
     final routeNotes = [
       if (_notesController.text.trim().isNotEmpty) _notesController.text.trim(),
@@ -514,9 +513,21 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
     await LocalRouteStoreService.saveRoute(route);
 
     if (widget.userId != null) {
+      final plannedPath = _activePlannedRoutePoints.isNotEmpty
+          ? _activePlannedRoutePoints
+          : widget.plannedRoutePoints;
+      final coordinateOverride = saveCompletePlannedPath && plannedPath.length > 1
+          ? plannedPath
+                .map((point) => {
+                      'lat': point.latitude,
+                      'lng': point.longitude,
+                    })
+                .toList()
+          : null;
       final savedRouteId = await BackendService.saveRoute(
         userId: widget.userId!,
         route: route,
+        coordinateOverride: coordinateOverride,
       );
 
       if (savedRouteId != null) {
@@ -727,11 +738,10 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                                   await _saveRoute(
                                     locationPoint: currentPoint,
                                     locationName: currentName,
-                                    endPoint: currentPoint,
-                                    endLocationName:
-                                        currentName ??
-                                        'Cancelled route endpoint',
+                                    endPoint: widget.destination,
+                                    endLocationName: widget.endLocationName,
                                     extraNotes: cancelNote,
+                                    saveCompletePlannedPath: true,
                                   );
                                 } else {
                                   await _recorderService.cancelRecording();
@@ -1379,7 +1389,7 @@ class _RouteRecorderScreenState extends State<RouteRecorderScreen> {
                     ),
                     if (widget.plannedRouteLabel != null)
                       Text(
-                        'Planned route: ${widget.plannedRouteLabel}${widget.plannedRouteSafetyScore == null ? '' : ' • Safety ${widget.plannedRouteSafetyScore!.toStringAsFixed(0)} / 100'}',
+                        'Planned route: ${widget.plannedRouteLabel}',
                         style: TextStyle(fontSize: 12, color: mutedTextColor),
                       ),
                     const SizedBox(height: 4),
