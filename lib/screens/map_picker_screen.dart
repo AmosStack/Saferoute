@@ -31,6 +31,7 @@ class _RouteOption {
     required this.segments,
     required this.hasBusStopsNearEndpoints,
     required this.safetyScore,
+    required this.transportPovertyScore,
   });
 
   final String label;
@@ -38,11 +39,17 @@ class _RouteOption {
   final List<PathSegment> segments;
   final bool hasBusStopsNearEndpoints;
   final double safetyScore;
+  final double transportPovertyScore;
 
   double get totalDistance =>
       segments.fold<double>(0.0, (sum, segment) => sum + segment.distance);
   int get totalDuration =>
       segments.fold<int>(0, (sum, segment) => sum + segment.duration);
+  String get transportPovertyBand {
+    if (transportPovertyScore >= 75) return 'High';
+    if (transportPovertyScore >= 45) return 'Moderate';
+    return 'Low';
+  }
   int get safetyAdjustedDuration {
     final boundedSafety = safetyScore.clamp(0.0, 100.0);
     final riskRatio = (100.0 - boundedSafety) / 100.0;
@@ -149,6 +156,46 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
 
     return score.clamp(0, 100).toDouble();
+  }
+
+  double _transportPovertyScore({
+    required List<PathSegment> segments,
+    required bool hasBusStops,
+    required String hint,
+    required double safetyScore,
+  }) {
+    final totalDistance = segments.fold<double>(
+      0.0,
+      (sum, segment) => sum + segment.distance,
+    );
+    final totalDuration = segments.fold<int>(
+      0,
+      (sum, segment) => sum + segment.duration,
+    );
+
+    var score = 100.0 - safetyScore;
+    score += (totalDistance / 2500.0) * 4.0;
+    score += (totalDuration / 900.0) * 5.0;
+    if (!hasBusStops) score += 12.0;
+
+    score += switch (hint) {
+      'walking' => 18.0,
+      'bicycle' => 10.0,
+      'tricycle' => 7.0,
+      'motorcycle' => 4.0,
+      'bus' => -12.0,
+      'taxi' => -4.0,
+      'car' => -2.0,
+      _ => 5.0,
+    };
+
+    return score.clamp(0.0, 100.0).toDouble();
+  }
+
+  Color _transportPovertyColor(double score) {
+    if (score >= 75) return Colors.red.shade700;
+    if (score >= 45) return Colors.orange.shade600;
+    return Colors.green.shade600;
   }
 
   PathSegment _fallbackSegment(
@@ -404,6 +451,16 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             hasBusStops: hasBusStops,
             hint: mode,
           ),
+          transportPovertyScore: _transportPovertyScore(
+            segments: segments,
+            hasBusStops: hasBusStops,
+            hint: mode,
+            safetyScore: _scoreRoute(
+              segments: segments,
+              hasBusStops: hasBusStops,
+              hint: mode,
+            ),
+          ),
         ),
       );
     }
@@ -421,6 +478,16 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             segments: segments,
             hasBusStops: hasBusStops,
             hint: mode,
+          ),
+          transportPovertyScore: _transportPovertyScore(
+            segments: segments,
+            hasBusStops: hasBusStops,
+            hint: mode,
+            safetyScore: _scoreRoute(
+              segments: segments,
+              hasBusStops: hasBusStops,
+              hint: mode,
+            ),
           ),
         ),
       );
@@ -501,6 +568,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 ),
                 Text(
                   'Safety score: ${option.safetyScore.toStringAsFixed(0)} / 100',
+                ),
+                Text(
+                  'Transport poverty: ${option.transportPovertyBand} (${option.transportPovertyScore.toStringAsFixed(0)} / 100)',
                 ),
                 Text('Distance: ${_formatDistance(option.totalDistance)}'),
                 Text(
@@ -722,6 +792,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ? Theme.of(context).colorScheme.surfaceContainerHighest
         : Colors.white.withValues(alpha: 0.96);
     final textColor = isDark ? Colors.white : Colors.black;
+    final selectedOption = _selectedRouteIndex != null && _selectedRouteIndex! < _routeOptions.length
+      ? _routeOptions[_selectedRouteIndex!]
+      : null;
 
     return Material(
       elevation: 3,
@@ -737,6 +810,39 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
               'Route Suggestions',
               style: TextStyle(fontWeight: FontWeight.w700, color: textColor),
             ),
+            if (selectedOption != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _transportPovertyColor(selectedOption.transportPovertyScore).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _transportPovertyColor(selectedOption.transportPovertyScore).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.groups_outlined,
+                      size: 18,
+                      color: _transportPovertyColor(selectedOption.transportPovertyScore),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Transport poverty: ${selectedOption.transportPovertyBand} (${selectedOption.transportPovertyScore.toStringAsFixed(0)} / 100)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             // Transport mode selector like Google Maps
             SingleChildScrollView(
@@ -785,6 +891,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   ),
                   child: Row(
                     children: [
+                      Container(
+                        width: 5,
+                        height: 34,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: _transportPovertyColor(_routeOptions[i].transportPovertyScore),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
                       Expanded(
                         child: Text(
                           '${_routeOptions[i].label}${_bestRouteIndex == i ? ' (Safest)' : ''}',
@@ -797,7 +912,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         ),
                       ),
                       Text(
-                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • ${_formatDistance(_routeOptions[i].totalDistance)}',
+                        'Safety ${_routeOptions[i].safetyScore.toStringAsFixed(0)} • Poverty ${_routeOptions[i].transportPovertyBand} • ${_formatDistance(_routeOptions[i].totalDistance)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark
