@@ -869,7 +869,6 @@ def dashboard_home(request: HttpRequest):
     recent_routes = _safe_dashboard_rows("recent activity", lambda: _recent_activity_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]))
     route_map_data = _safe_dashboard_rows("route map", lambda: _route_map_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]))
     complaint_map_data = _safe_dashboard_rows("complaint map", lambda: _complaint_map_rows(scope_sql=scope["location_scope_sql"], scope_params=scope["location_scope_params"]))
-    transport_poverty_data = _safe_dashboard_rows("transport poverty map", lambda: _transport_poverty_rows(scope_sql=scope["scope_sql"], scope_params=scope["scope_params"]))
 
     return render(
         request,
@@ -881,7 +880,6 @@ def dashboard_home(request: HttpRequest):
             "mode_rows": mode_rows,
             "route_map_data": route_map_data,
             "complaint_map_data": complaint_map_data,
-            "transport_poverty_data": transport_poverty_data,
         },
     )
 
