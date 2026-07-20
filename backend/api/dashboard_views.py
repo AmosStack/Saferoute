@@ -525,9 +525,28 @@ def admin_update(request: HttpRequest, admin_id: int):
         return _redirect("admins_list", error=str(exc))
 
 
-def _metrics(scope_sql: str = "1=1", scope_params: list[str] | None = None):
+def _metrics(
+    scope_sql: str = "1=1",
+    scope_params: list[str] | None = None,
+    location_scope_sql: str | None = None,
+    location_scope_params: list[str] | None = None,
+):
     ensure_schema()
     scope_params = scope_params or []
+    location_scope_sql = location_scope_sql or "1=1"
+    location_scope_params = location_scope_params or []
+    incident_scope_sql = (
+        """
+        (
+            i.location_id IS NOT NULL
+            AND {location_scope_sql}
+        )
+        OR (
+            i.safety_report_id IS NOT NULL
+            AND sr.route_id IN (SELECT id FROM scoped_routes)
+        )
+        """
+    ).format(location_scope_sql=location_scope_sql)
     with connection.cursor() as cursor:
         cursor.execute(
             (
@@ -547,14 +566,19 @@ def _metrics(scope_sql: str = "1=1", scope_params: list[str] | None = None):
                     COALESCE((SELECT SUM(duration_seconds) FROM scoped_routes), 0) AS duration_seconds,
                     COALESCE((SELECT ROUND(AVG(rating)::numeric, 2) FROM scoped_routes WHERE rating IS NOT NULL), 0) AS average_rating,
                     (SELECT COUNT(*) FROM saferoute.safety_reports sr WHERE sr.route_id IN (SELECT id FROM scoped_routes)) AS safety_reports,
-                    (SELECT COUNT(*) FROM saferoute.incidents i WHERE i.safety_report_id IN (
-                        SELECT sr.id
-                        FROM saferoute.safety_reports sr
-                        WHERE sr.route_id IN (SELECT id FROM scoped_routes)
-                    )) AS incidents
+                    (
+                        SELECT COUNT(*)
+                        FROM saferoute.incidents i
+                        LEFT JOIN saferoute.safety_reports sr ON sr.id = i.safety_report_id
+                        LEFT JOIN saferoute.locations l ON l.id = i.location_id
+                        WHERE
+                    """
+                + incident_scope_sql
+                + """
+                    ) AS incidents
                 """
             ),
-            scope_params,
+            scope_params + location_scope_params,
         )
         row = _dictfetchone(cursor)
 
@@ -875,7 +899,12 @@ def dashboard_home(request: HttpRequest):
         "dashboard/home.html",
         {
             "active": "dashboard",
-            "metrics": _metrics(scope["scope_sql"], scope["scope_params"]),
+            "metrics": _metrics(
+                scope["scope_sql"],
+                scope["scope_params"],
+                scope["location_scope_sql"],
+                scope["location_scope_params"],
+            ),
             "recent_routes": recent_routes,
             "mode_rows": mode_rows,
             "route_map_data": route_map_data,
@@ -1173,7 +1202,12 @@ def analytics(request: HttpRequest):
         "dashboard/analytics.html",
         {
             "active": "analytics",
-            "metrics": _metrics(scope["scope_sql"], scope["scope_params"]),
+            "metrics": _metrics(
+                scope["scope_sql"],
+                scope["scope_params"],
+                scope["location_scope_sql"],
+                scope["location_scope_params"],
+            ),
             "mode_rows": mode_rows,
             "daily_rows": daily_rows,
             "top_users": top_users,
@@ -1247,7 +1281,12 @@ def gis_policy_workspace(request: HttpRequest):
         "gis mode analysis",
         lambda: _mode_analysis_rows(route_scope_sql, route_scope_params),
     )
-    metrics = _metrics(route_scope_sql, route_scope_params)
+    metrics = _metrics(
+        route_scope_sql,
+        route_scope_params,
+        location_scope_sql,
+        location_scope_params,
+    )
 
     top_hotspot = complaint_map_data[0] if complaint_map_data else None
     top_density = density_rows[0] if density_rows else None
