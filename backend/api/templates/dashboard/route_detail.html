@@ -86,8 +86,18 @@
     ])
     .filter((point) => !Number.isNaN(point[0]) && !Number.isNaN(point[1]));
 
+  function routeRatingColor(rating) {
+    const value = Math.round(Number(rating || 0));
+    if (value === 5) return '#0f7a5a';
+    if (value === 4) return '#7cb342';
+    if (value === 3) return '#f2c94c';
+    if (value === 2) return '#f97316';
+    if (value === 1) return '#b42318';
+    return '#6b7280';
+  }
+
   if (points.length) {
-    L.polyline(points, { color: '#0f7a5a', weight: 4 }).addTo(routeLayer);
+    L.polyline(points, { color: routeRatingColor(route.rating), weight: 4, opacity: 0.84 }).addTo(routeLayer);
     L.marker(points[0]).addTo(routeLayer).bindPopup(route.start_location_name || 'Start');
     L.marker(points[points.length - 1]).addTo(routeLayer).bindPopup(route.end_location_name || 'End');
     map.fitBounds(points, { padding: [24, 24] });
