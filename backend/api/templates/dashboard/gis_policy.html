@@ -143,7 +143,7 @@
   <div class="section-title">
     <div>
       <h2>GIS map generator</h2>
-      <div class="subtle">Toggle route polylines, complaint hot spots, and route-density cells.</div>
+      <div class="subtle">Toggle route polylines, complaint hot spots, and route-density cells. Route colors follow the five-star safety rating.</div>
     </div>
     <button class="primary" type="button" id="generate-map">Generate GIS map</button>
   </div>
@@ -156,7 +156,11 @@
   <div class="map-shell" style="margin-top:12px;">
     <div id="gis-map" class="map-canvas"></div>
     <div class="map-legend">
-      <span><i class="dot" style="background:#0f7a5a;"></i>Route polyline</span>
+      <span><i class="dot" style="background:#0f7a5a;"></i>5-star route</span>
+      <span><i class="dot" style="background:#7cb342;"></i>4-star route</span>
+      <span><i class="dot" style="background:#f2c94c;"></i>3-star route</span>
+      <span><i class="dot" style="background:#f97316;"></i>2-star route</span>
+      <span><i class="dot" style="background:#b42318;"></i>1-star route</span>
       <span><i class="dot" style="background:#b42318;"></i>Complaint hot spot</span>
       <span><i class="dot" style="background:#335c99;"></i>Route density</span>
       <span><i class="dot" style="background:#ea580c;"></i>Transport poverty</span>
@@ -368,6 +372,7 @@
       const topMode = policy.top_mode || {};
       const topHotspot = policy.top_hotspot || {};
       const topDensity = policy.top_density || {};
+      const topPoverty = policy.top_poverty || {};
       const weakModes = policy.low_rating_modes || [];
 
       return {
@@ -380,6 +385,7 @@
         topHotspot: safeValue(topHotspot.location_name, 'No mapped hot spot'),
         hotspotCount: safeValue(topHotspot.complaint_count, 0),
         topDensity: `${safeValue(topDensity.route_count, 0)} routes near ${safeValue(topDensity.latitude, '-')} / ${safeValue(topDensity.longitude, '-')}`,
+        topPoverty: `${safeValue(topPoverty.transport_poverty_score, '-')} near ${safeValue(topPoverty.latitude, '-')} / ${safeValue(topPoverty.longitude, '-')}`,
         weakModes,
       };
     }
@@ -421,9 +427,11 @@
       const metrics = policy.metrics || {};
       const topHotspot = policy.top_hotspot || {};
       const topDensity = policy.top_density || {};
+      const topPoverty = policy.top_poverty || {};
       const topMode = policy.top_mode || {};
+      const lowRatingModes = policy.low_rating_modes || [];
       return [
-        'AUTOMATED POLICY BRIEF',
+        'SAFEROUTE PROFESSIONAL POLICY BRIEF',
         '',
         `Ward scope: ${currentScopeLabel()}`,
         '',
@@ -433,16 +441,24 @@
         'Evidence base:',
         `The dashboard aggregates ${safeValue(metrics.recorded_routes, 0)} recorded routes, ${safeValue(metrics.safety_reports, 0)} safety reports, and ${safeValue(metrics.incidents, 0)} linked incident records.`,
         `The most active transport mode is ${safeValue(topMode.transport_mode, 'not yet established')}. The strongest GIS density signal is near ${safeValue(topDensity.latitude, '-')} / ${safeValue(topDensity.longitude, '-')}.`,
+        `The strongest transport poverty signal is ${safeValue(topPoverty.transport_poverty_score, '-')} near ${safeValue(topPoverty.latitude, '-')} / ${safeValue(topPoverty.longitude, '-')}.`,
         `The leading complaint location is ${safeValue(topHotspot.location_name, 'not yet available')}.`,
+        lowRatingModes.length
+          ? `Low-rating transport modes requiring review: ${lowRatingModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
+          : 'No low-rating transport mode cluster was detected from available ratings.',
         '',
-        'Policy priorities:',
-        '1. Target lighting, road-condition, and security interventions around mapped complaint hot spots.',
-        '2. Protect high-density commuter corridors with safer pickup and drop-off points plus better route monitoring.',
-        '3. Require periodic review of transport modes with weak ratings or repeated incident notes.',
-        '4. Use route diary data as a standing evidence base for ward and district transport planning.',
+        'Policy position:',
+        'SafeRoute evidence should be treated as a formal decision-support source for ward mobility safety planning, infrastructure maintenance, enforcement coordination, and budget prioritisation.',
         '',
-        'Implementation note:',
-        'Treat this brief as an automated first draft. Validate hot spots with local officials and community reports before resource allocation.',
+        'Policy directives:',
+        '1. Prioritise funded interventions for corridors where complaint hot spots, dense route use, weak safety ratings, and transport poverty signals overlap.',
+        '2. Establish a ward-level safety improvement programme covering lighting, road-surface repair, pedestrian protection, safe pickup and drop-off points, and incident response visibility.',
+        '3. Require monthly review of transport modes and route segments with ratings below 3 stars, including field verification and corrective action tracking.',
+        '4. Use SafeRoute route diary data as a standing evidence base for ward and district transport plans, procurement decisions, and public safety coordination.',
+        '5. Publish a quarterly accountability note showing actions taken, locations treated, unresolved risks, and changes in route ratings or reported incidents.',
+        '',
+        'Implementation and safeguards:',
+        'Validate mapped risks with local officials and community reports before committing resources. Use aggregated data for policy decisions and avoid exposing personally identifiable traveller information.',
       ].join('\n');
     }
 
@@ -576,6 +592,7 @@
       const metrics = policy.metrics || {};
       const topHotspot = policy.top_hotspot || {};
       const topDensity = policy.top_density || {};
+      const topPoverty = policy.top_poverty || {};
       const topMode = policy.top_mode || {};
       const lowRatingModes = policy.low_rating_modes || [];
       const doc = getPdfDocument(
@@ -592,20 +609,25 @@
       cursorY = addPdfSection(doc, 'Evidence base', [
         `The dashboard aggregates ${safeValue(metrics.recorded_routes, 0)} recorded routes, ${safeValue(metrics.safety_reports, 0)} safety reports, and ${safeValue(metrics.incidents, 0)} linked incident records.`,
         `The most active transport mode is ${safeValue(topMode.transport_mode, 'not yet established')}. The strongest GIS density signal is near ${safeValue(topDensity.latitude, '-')} / ${safeValue(topDensity.longitude, '-')}.`,
+        `The strongest transport poverty signal is ${safeValue(topPoverty.transport_poverty_score, '-')} near ${safeValue(topPoverty.latitude, '-')} / ${safeValue(topPoverty.longitude, '-')}.`,
         `The leading complaint location is ${safeValue(topHotspot.location_name, 'not yet available')}.`,
         lowRatingModes.length
           ? `Low-rating transport modes needing review: ${lowRatingModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
           : 'No low-rating transport mode cluster was detected from available ratings.',
       ], cursorY);
-      cursorY = addPdfSection(doc, 'Policy priorities', [
-        'Target lighting, road-condition, and security interventions around mapped complaint hot spots.',
-        'Protect high-density commuter corridors with safer pickup and drop-off points plus better route monitoring.',
-        'Require periodic review of transport modes with weak ratings or repeated incident notes.',
-        'Use route diary data as a standing evidence base for ward and district transport planning.',
+      cursorY = addPdfSection(doc, 'Policy position', [
+        'SafeRoute evidence should be treated as a formal decision-support source for ward mobility safety planning, infrastructure maintenance, enforcement coordination, and budget prioritisation.',
       ], cursorY);
-      cursorY = addPdfSection(doc, 'Implementation note', [
-        'Treat this brief as an automated first draft.',
-        'Validate hot spots with local officials and community reports before resource allocation.',
+      cursorY = addPdfSection(doc, 'Policy directives', [
+        'Prioritise funded interventions for corridors where complaint hot spots, dense route use, weak safety ratings, and transport poverty signals overlap.',
+        'Establish a ward-level safety improvement programme covering lighting, road-surface repair, pedestrian protection, safe pickup and drop-off points, and incident response visibility.',
+        'Require monthly review of transport modes and route segments with ratings below 3 stars, including field verification and corrective action tracking.',
+        'Use route diary data as a standing evidence base for ward and district transport plans, procurement decisions, and public safety coordination.',
+        'Publish a quarterly accountability note showing actions taken, locations treated, unresolved risks, and changes in route ratings or reported incidents.',
+      ], cursorY);
+      cursorY = addPdfSection(doc, 'Implementation and safeguards', [
+        'Validate mapped risks with local officials and community reports before committing resources.',
+        'Use aggregated data for policy decisions and avoid exposing personally identifiable traveller information.',
         `This brief is currently scoped to ${currentScopeLabel()}.`,
       ], cursorY);
       finalizePdf(doc);
@@ -670,6 +692,27 @@
     return '#335c99';
   }
 
+  function routeRatingValue(rating) {
+    const value = Math.round(Number(rating || 0));
+    if (value < 1 || value > 5) return null;
+    return value;
+  }
+
+  function routeRatingColor(rating) {
+    const value = routeRatingValue(rating);
+    if (value === 5) return '#0f7a5a';
+    if (value === 4) return '#7cb342';
+    if (value === 3) return '#f2c94c';
+    if (value === 2) return '#f97316';
+    if (value === 1) return '#b42318';
+    return '#6b7280';
+  }
+
+  function routeRatingLabel(rating) {
+    const value = routeRatingValue(rating);
+    return value ? `${value}-star safety rating` : 'Unrated route';
+  }
+
   function drawMap() {
     routeLayer.clearLayers();
     complaintLayer.clearLayers();
@@ -680,8 +723,14 @@
     routes.forEach((route) => {
       const points = routePoints(route);
       if (points.length < 2) return;
-      L.polyline(points, { color: '#0f7a5a', weight: 4, opacity: 0.78 })
-        .bindPopup(`<strong>${route.user_name || 'Traveler'}</strong><br>${route.start_location_name || 'Start'} to ${route.end_location_name || 'End'}<br>${route.transport_mode || 'mode unknown'}`)
+      const ratingColor = routeRatingColor(route.rating);
+      L.polyline(points, { color: ratingColor, weight: 4, opacity: 0.84 })
+        .bindPopup(
+          `<strong>${route.user_name || 'Traveler'}</strong><br>` +
+          `${route.start_location_name || 'Start'} to ${route.end_location_name || 'End'}<br>` +
+          `${route.transport_mode || 'mode unknown'}<br>` +
+          `${routeRatingLabel(route.rating)}`
+        )
         .addTo(routeLayer);
       bounds.push(...points);
     });
@@ -792,8 +841,9 @@
     const topDensity = policy.top_density || {};
     const topPoverty = policy.top_poverty || {};
     const topMode = policy.top_mode || {};
+    const lowRatingModes = policy.low_rating_modes || [];
     return [
-      'AUTOMATED POLICY BRIEF',
+      'SAFEROUTE PROFESSIONAL POLICY BRIEF',
       `Ward scope: ${currentScopeLabel()}`,
       '',
       'Policy question:',
@@ -804,15 +854,22 @@
       `The most active transport mode is ${summaryValue(topMode.transport_mode, 'not yet established')}. The strongest GIS density signal is near ${summaryValue(topDensity.latitude, '-')} / ${summaryValue(topDensity.longitude, '-')}.`,
       `The strongest transport poverty signal is ${summaryValue(topPoverty.transport_poverty_score, '-')} near ${summaryValue(topPoverty.latitude, '-')} / ${summaryValue(topPoverty.longitude, '-')}.`,
       `The leading complaint location is ${summaryValue(topHotspot.location_name, 'not yet available')}.`,
+      lowRatingModes.length
+        ? `Low-rating transport modes requiring review: ${lowRatingModes.map((row) => `${row.transport_mode} (${row.average_rating})`).join(', ')}.`
+        : 'No low-rating transport mode cluster was detected from available ratings.',
       '',
-      'Policy priorities:',
-      '1. Target lighting, road-condition, and security interventions around mapped complaint hot spots.',
-      '2. Protect high-density commuter corridors with safer pickup/drop-off points and better route monitoring.',
-      '3. Require periodic review of transport modes with weak ratings or repeated incident notes.',
-      '4. Use route diary data as a standing evidence base for ward and district transport planning.',
+      'Policy position:',
+      'SafeRoute evidence should be treated as a formal decision-support source for ward mobility safety planning, infrastructure maintenance, enforcement coordination, and budget prioritisation.',
       '',
-      'Implementation note:',
-      'Treat this brief as an automated first draft. Validate hot spots with local officials and community reports before resource allocation.',
+      'Policy directives:',
+      '1. Prioritise funded interventions for corridors where complaint hot spots, dense route use, weak safety ratings, and transport poverty signals overlap.',
+      '2. Establish a ward-level safety improvement programme covering lighting, road-surface repair, pedestrian protection, safe pickup and drop-off points, and incident response visibility.',
+      '3. Require monthly review of transport modes and route segments with ratings below 3 stars, including field verification and corrective action tracking.',
+      '4. Use route diary data as a standing evidence base for ward and district transport plans, procurement decisions, and public safety coordination.',
+      '5. Publish a quarterly accountability note showing actions taken, locations treated, unresolved risks, and changes in route ratings or reported incidents.',
+      '',
+      'Implementation and safeguards:',
+      'Validate mapped risks with local officials and community reports before committing resources. Use aggregated data for policy decisions and avoid exposing personally identifiable traveller information.',
     ].join('\n');
   }
 
