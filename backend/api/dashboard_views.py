@@ -1124,6 +1124,7 @@ def route_detail(request: HttpRequest, route_id):
                 "start_location_name": route.get("start_location_name"),
                 "end_location_name": route.get("end_location_name"),
                 "transport_mode": route.get("transport_mode"),
+                "rating": _json_ready(route.get("rating")),
                 "start_latitude": _json_ready(route.get("start_latitude")),
                 "start_longitude": _json_ready(route.get("start_longitude")),
                 "end_latitude": _json_ready(route.get("end_latitude")),
